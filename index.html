@@ -187,6 +187,7 @@
   #touchButtons [data-touch=swap] { right: 184px; bottom: 92px; }
   #touchButtons [data-touch=scope] { right: 124px; bottom: 162px; }
   #touchButtons [data-touch=heal] { right: 190px; bottom: 162px; }
+  #touchButtons [data-touch=lamp] { right: 58px; bottom: 196px; }
   #touchButtons [data-touch=pause] { top: 66px; left: 50%; width: 44px; height: 44px; margin-left: -22px; }
 
   /* Telefonda pastki burchaklar barmoqlar uchun bo'sh qoladi, ko'rsatkichlar tepaga chiqadi */
@@ -313,7 +314,12 @@
   .setting-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
   .setting output { color: var(--ink); font-variant-numeric: tabular-nums; }
   .setting input[type=range] { width: 100%; accent-color: var(--amber); }
-  .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+  .segmented { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 6px; }
+  #setup { background: rgba(9, 13, 8, .34); }
+  #setup .card { background: rgba(16, 23, 15, .86); }
+  #setup .setting { margin-top: 12px; }
+  #setup .setting-head { margin-bottom: 5px; }
+  #setupNote { min-height: 40px; margin: 12px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); text-align: left; }
   .segmented button {
     padding: 9px 0; font: 600 14px var(--ui-font); color: var(--ink-soft); cursor: pointer;
     background: transparent; border: 1px solid var(--line); border-radius: 5px;
@@ -413,6 +419,7 @@
       <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Qurol almashtirish</dd>
       <dt><kbd>B</kbd></dt><dd>Durbin</dd>
       <dt><kbd>H</kbd></dt><dd>Dori ichish</dd>
+      <dt><kbd>F</kbd></dt><dd>Bosh chirog‘i</dd>
       <dt><kbd>M</kbd></dt><dd>Ovozni o‘chirish</dd>
     </dl>
     <div class="actions">
@@ -432,6 +439,7 @@
     <div class="actions">
       <button class="primary" id="resumeBtn">Davom etish</button>
       <button class="secondary" data-open-settings>Sozlamalar</button>
+      <button class="secondary" data-return-menu>Menyuga</button>
     </div>
   </div>
 </section>
@@ -447,6 +455,7 @@
     <div class="actions">
       <button class="primary" id="againBtn">Qayta o‘ynash</button>
       <button class="secondary" data-open-shop>Do‘kon</button>
+      <button class="secondary" data-return-menu>Menyuga</button>
     </div>
   </div>
 </section>
@@ -468,6 +477,20 @@
       <div class="segmented" id="qualityButtons"></div>
     </div>
     <button class="primary" id="settingsCloseBtn">Tayyor</button>
+  </div>
+</section>
+
+<!-- Ov sharoitini tanlash: orqada o'rmon tanlovga qarab o'zgaradi -->
+<section class="screen" id="setup" hidden>
+  <div class="card wide">
+    <h2>Ov sharoiti</h2>
+    <div id="setupRows"></div>
+    <p id="setupNote"></p>
+    <div class="actions">
+      <button class="primary" id="setupStartBtn">Ovga chiqish</button>
+      <button class="secondary" id="setupRandomBtn">Tasodifiy</button>
+      <button class="secondary" id="setupBackBtn">Orqaga</button>
+    </div>
   </div>
 </section>
 
@@ -494,6 +517,36 @@
 <script type="module">
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* --------------------------------------------------------------------------
+   Dunyo urug'i. Birga o'ynaganda hammada bir xil o'rmon chiqishi kerak, shuning
+   uchun dunyo qurilishi vaqtida Math.random urug'li generatorga almashtiriladi.
+   Urug' xona kodidan olinadi. Qurilish tugagach, asl Math.random qaytariladi.
+   -------------------------------------------------------------------------- */
+
+const ROOM_HASH = '#xona-';
+const roomCode = location.hash.startsWith(ROOM_HASH)
+  ? location.hash.slice(ROOM_HASH.length).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5)
+  : '';
+
+function hashText(text) {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+  return hash >>> 0;
+}
+
+function seededRandom(seed) {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const nativeRandom = Math.random;
+Math.random = seededRandom(roomCode ? hashText(roomCode) : Math.floor(nativeRandom() * 2 ** 32));
 
 /* ==========================================================================
    1. SOZLAMALAR — o'yin balansini shu yerdan o'zgartirish mumkin
@@ -540,13 +593,19 @@ const DEFAULT_PROFILE = {
   owned: [],    // sotib olingan jihozlar
   medkits: 0,
   settings: { sensitivity: 1, volume: 0.8, quality: IS_TOUCH_DEVICE ? 'low' : 'high' },
+  setup: { time: 'day', weather: 'clear', season: 'summer', wind: 'breeze', difficulty: 'normal', duration: '180' },
 };
 
 function loadProfile() {
   const fresh = structuredClone(DEFAULT_PROFILE);
   try {
     const saved = JSON.parse(localStorage.getItem(PROFILE_KEY)) ?? {};
-    return { ...fresh, ...saved, settings: { ...fresh.settings, ...saved.settings } };
+    return {
+      ...fresh,
+      ...saved,
+      settings: { ...fresh.settings, ...saved.settings },
+      setup: { ...fresh.setup, ...saved.setup },
+    };
   } catch {
     return fresh;
   }
@@ -733,6 +792,9 @@ function terrainHeight(x, z) {
 const waterDepth = (x, z) => WATER_LEVEL - terrainHeight(x, z);
 const isDryLand = (x, z) => waterDepth(x, z) < -0.3;
 
+/** Yurishga xalaqit beradigan chuqurlik: qishda muz ustidan yuriladi. */
+const wadeDepthAt = (x, z) => (conditions.frozen ? 0 : waterDepth(x, z));
+
 /* ==========================================================================
    4. SAHNA: renderer, kameralar, yorug'lik, osmon
    ========================================================================== */
@@ -778,24 +840,144 @@ weaponSun.position.set(1, 2, 1);
 weaponScene.add(weaponSun);
 
 /* --------------------------------------------------------------------------
-   Vaqt va ob-havo: har raund boshida tasodifiy tanlanadi.
-   noise: o'yinchi ovozi qanchalik eshitiladi, predatorSense: yirtqichlar sezgirligi.
+   Ov sharoiti: vaqt, ob-havo, fasl, shamol, qiyinlik va davomiylikdan yig'iladi.
+   name: tanlov oynasidagi nom, note: o'yinga qanday ta'sir qilishi.
    -------------------------------------------------------------------------- */
 
-const CONDITIONS = {
-  day: { name: 'Kunduz', sky: '#5c9bd6', horizon: '#cfe0d6', sunColor: '#ffe6bd', sunPower: 2.9, ambient: 1.5, fog: 0.0105, sun: [0.55, 0.72, 0.42], clouds: 0.46 },
-  dawn: { name: 'Tong', sky: '#7d9ccb', horizon: '#f2d2b0', sunColor: '#ffc898', sunPower: 2.3, ambient: 1.15, fog: 0.014, sun: [0.8, 0.26, 0.35], clouds: 0.5 },
-  dusk: { name: 'Oqshom', sky: '#3c5283', horizon: '#e89c6c', sunColor: '#ffa060', sunPower: 2, ambient: 0.85, fog: 0.013, sun: [-0.8, 0.2, 0.3], clouds: 0.5, predatorSense: 1.3 },
-  mist: { name: 'Qalin tuman', sky: '#a9b8b4', horizon: '#c5cfc8', sunColor: '#e8e4d4', sunPower: 1.2, ambient: 1.55, fog: 0.03, sun: [0.4, 0.8, 0.3], clouds: 0.3 },
-  rain: { name: 'Yomg‘ir', sky: '#6c7981', horizon: '#9ba7a7', sunColor: '#cfd6da', sunPower: 0.9, ambient: 1.3, fog: 0.018, sun: [0.3, 0.85, 0.2], clouds: 0.12, noise: 0.7, rain: true },
+const SETUP_OPTIONS = {
+  time: {
+    label: 'Vaqt',
+    choices: {
+      dawn: { name: 'Tong', sky: '#7d9ccb', horizon: '#f2d2b0', sunColor: '#ffc898', sunPower: 2.3, ambient: 1.15, fog: 0.014, sun: [0.8, 0.26, 0.35], note: 'Hayvonlar suv bo‘yiga keladi.' },
+      day: { name: 'Kunduz', sky: '#5c9bd6', horizon: '#cfe0d6', sunColor: '#ffe6bd', sunPower: 2.9, ambient: 1.5, fog: 0.0105, sun: [0.55, 0.72, 0.42] },
+      dusk: { name: 'Oqshom', sky: '#3c5283', horizon: '#e89c6c', sunColor: '#ffa060', sunPower: 2, ambient: 0.85, fog: 0.013, sun: [-0.8, 0.2, 0.3], predatorSense: 1.3, note: 'Yirtqichlar sergakroq.' },
+      night: { name: 'Tun', sky: '#0d1830', horizon: '#1d2a40', sunColor: '#a9bde6', sunPower: 0.55, ambient: 0.34, fog: 0.015, sun: [-0.35, 0.7, 0.45], predatorSense: 1.4, stars: 1, note: 'F tugmasi bilan bosh chirog‘i yonadi, lekin chiroq hayvonlarga ko‘rinadi.' },
+    },
+  },
+  weather: {
+    label: 'Ob-havo',
+    choices: {
+      clear: { name: 'Ochiq', clouds: 0.5, gray: 0, light: 1 },
+      cloudy: { name: 'Bulutli', clouds: 0.22, gray: 0.35, light: 0.62 },
+      mist: { name: 'Tuman', clouds: 0.3, gray: 0.6, light: 0.5, fog: 0.03, note: 'Uzoqni ko‘rmaysiz, hayvon ham sizni kech ko‘radi.', noise: 0.85 },
+      rain: { name: 'Yomg‘ir', clouds: 0.12, gray: 0.6, light: 0.36, fog: 0.018, rain: true, noise: 0.7, trackLife: 0.5, note: 'Qadam kam eshitiladi, izlar tez yuviladi.' },
+      storm: { name: 'Momaqaldiroq', clouds: 0.05, gray: 0.75, light: 0.26, fog: 0.02, rain: true, lightning: true, noise: 0.6, trackLife: 0.5, note: 'Guldurak paytida otsangiz, o‘q ovozi yaxshi eshitilmaydi.' },
+      snow: { name: 'Qor', clouds: 0.15, gray: 0.5, light: 0.6, fog: 0.016, snowfall: true, noise: 0.8, trackLife: 2, note: 'Izlar uzoq saqlanadi.' },
+    },
+  },
+  season: {
+    label: 'Fasl',
+    choices: {
+      summer: { name: 'Yoz' },
+      autumn: { name: 'Kuz', autumn: 1, note: 'Barglar sarg‘aygan.' },
+      winter: { name: 'Qish', snow: 1, frozen: true, trackLife: 2, note: 'Ko‘llar muzlaydi, ustidan yurish mumkin. O‘rdak va baliq bo‘lmaydi.' },
+    },
+  },
+  wind: {
+    label: 'Shamol',
+    choices: {
+      calm: { name: 'Tinch', strength: 0.3, sway: 0.1, note: 'Hid uzoqqa bormaydi.' },
+      breeze: { name: 'O‘rtacha', strength: 1, sway: 0.34 },
+      gale: { name: 'Kuchli', strength: 1.6, sway: 0.62, note: 'Shamolga qarshi yuring: hidingiz uzoqqa boradi.' },
+    },
+  },
+  difficulty: {
+    label: 'Qiyinlik',
+    choices: {
+      easy: { name: 'Oson', sense: 0.8, damage: 0.65, predators: 0.5, reward: 0.7 },
+      normal: { name: 'O‘rta', sense: 1, damage: 1, predators: 0.8, reward: 1 },
+      hard: { name: 'Qiyin', sense: 1.25, damage: 1.4, predators: 1, reward: 1.5 },
+    },
+  },
+  duration: {
+    label: 'Davomiylik',
+    choices: {
+      180: { name: '3 daqiqa' },
+      300: { name: '5 daqiqa' },
+      600: { name: '10 daqiqa' },
+    },
+  },
 };
 
-let conditions = CONDITIONS.day;
+let conditions; // hozirgi raund sharoiti, applySetup yig'adi
+
+/** Bir-biriga zid tanlovlarni to'g'rilaydi: qor faqat qishda yog'adi, qishda yomg'ir yog'maydi. */
+function normalizeSetup(setup, changed) {
+  if (changed === 'weather' && setup.weather === 'snow') setup.season = 'winter';
+  if (setup.season === 'winter' && (setup.weather === 'rain' || setup.weather === 'storm')) setup.weather = 'snow';
+  if (setup.season !== 'winter' && setup.weather === 'snow') setup.weather = 'cloudy';
+}
+
+function buildConditions(setup) {
+  const pickChoice = (key) => SETUP_OPTIONS[key].choices[setup[key]];
+  const time = pickChoice('time'), weather = pickChoice('weather'), season = pickChoice('season');
+  const wind = pickChoice('wind'), difficulty = pickChoice('difficulty');
+
+  // Bulutli havoda osmon rangi kulrangga va xiraroqqa o'tadi
+  const overcast = (hex) => {
+    const color = new THREE.Color(hex);
+    const gray = (color.r + color.g + color.b) / 3;
+    return color.lerp(new THREE.Color(gray, gray * 1.02, gray * 1.05), weather.gray).multiplyScalar(1 - weather.gray * 0.25);
+  };
+
+  return {
+    name: [time.name, weather.name, season.name].join(' · '),
+    note: [time.note, weather.note, season.note, wind.note].filter(Boolean).join(' '),
+    sky: overcast(time.sky),
+    horizon: overcast(time.horizon),
+    sunColor: time.sunColor,
+    sunPower: time.sunPower * weather.light,
+    ambient: time.ambient * lerp(1, 0.85, weather.gray),
+    fog: Math.max(time.fog, weather.fog ?? 0),
+    sun: time.sun,
+    clouds: weather.clouds,
+    stars: (time.stars ?? 0) * (1 - weather.gray),
+    noise: weather.noise ?? 1,
+    rain: weather.rain,
+    snowfall: weather.snowfall,
+    lightning: weather.lightning,
+    predatorSense: (time.predatorSense ?? 1) * difficulty.sense,
+    preySense: difficulty.sense,
+    night: setup.time === 'night',
+    frozen: Boolean(season.frozen),
+    snow: season.snow ?? 0,
+    autumn: season.autumn ?? 0,
+    trackLife: (weather.trackLife ?? 1) * (season.trackLife ?? 1),
+    windStrength: wind.strength,
+    windSway: wind.sway,
+    damage: difficulty.damage,
+    predators: difficulty.predators,
+    reward: difficulty.reward,
+    duration: Number(setup.duration),
+  };
+}
+
+// Fasl rangi shader orqali beriladi: qorda ustki yuzalar oqaradi, kuzda yashil rang sarg'ayadi
+const seasonUniforms = { snowCover: { value: 0 }, autumnCover: { value: 0 } };
+
+function addSeasonShader(shader) {
+  Object.assign(shader.uniforms, seasonUniforms);
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying float vUpness;')
+    .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+      vec3 worldNormal = objectNormal;
+      #ifdef USE_INSTANCING
+        worldNormal = mat3(instanceMatrix) * worldNormal;
+      #endif
+      vUpness = normalize(mat3(modelMatrix) * worldNormal).y;`);
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float snowCover, autumnCover;\nvarying float vUpness;')
+    .replace('#include <color_fragment>', `#include <color_fragment>
+      float leafy = clamp((diffuseColor.g - max(diffuseColor.r, diffuseColor.b)) * 9.0, 0.0, 1.0);
+      vec3 fallen = mix(vec3(0.82, 0.4, 0.07), vec3(0.62, 0.13, 0.04), clamp(diffuseColor.g * 5.0 - 0.4, 0.0, 1.0));
+      diffuseColor.rgb = mix(diffuseColor.rgb, fallen * (0.4 + diffuseColor.g * 1.4), autumnCover * leafy);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.93, 0.98), snowCover * smoothstep(0.15, 0.62, vUpness));`);
+}
 
 function applyConditions(next) {
   conditions = next;
-  SKY_COLOR.set(next.sky);
-  HORIZON_COLOR.set(next.horizon);
+  SKY_COLOR.copy(next.sky);
+  HORIZON_COLOR.copy(next.horizon);
   SUN_DIRECTION.set(...next.sun).normalize();
   scene.fog.color.copy(HORIZON_COLOR);
   scene.fog.density = next.fog;
@@ -808,6 +990,10 @@ function applyConditions(next) {
   weaponSkyLight.intensity = next.ambient * 1.07;
   skyMaterial.uniforms.cloudLevel.value = next.clouds;
   skyMaterial.uniforms.sunGlow.value = next.sunPower / 2.9;
+  skyMaterial.uniforms.cloudLight.value = clamp(next.ambient / 1.3, 0.1, 1);
+  skyMaterial.uniforms.stars.value = next.stars;
+  seasonUniforms.snowCover.value = next.snow;
+  seasonUniforms.autumnCover.value = next.autumn;
 }
 
 /** Soya kamerasi o'yinchi bilan birga yuradi. Sakrashli qadam soya titrashini kamaytiradi. */
@@ -830,6 +1016,8 @@ const skyMaterial = new THREE.ShaderMaterial({
     time: { value: 0 },
     cloudLevel: { value: 0.46 }, // qanchalik past bo'lsa, osmonni shunchalik ko'p bulut qoplaydi
     sunGlow: { value: 1 },
+    cloudLight: { value: 1 },    // tunda bulutlar qorong'i bo'ladi
+    stars: { value: 0 },
   },
   vertexShader: /* glsl */ `
     varying vec3 vDirection;
@@ -839,7 +1027,7 @@ const skyMaterial = new THREE.ShaderMaterial({
     }`,
   fragmentShader: /* glsl */ `
     uniform vec3 topColor, horizonColor, sunDirection;
-    uniform float time, cloudLevel, sunGlow;
+    uniform float time, cloudLevel, sunGlow, cloudLight, stars;
     varying vec3 vDirection;
 
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -863,9 +1051,12 @@ const skyMaterial = new THREE.ShaderMaterial({
       color += vec3(1.0, 0.9, 0.7) * (pow(sunAmount, 900.0) * 5.0 + pow(sunAmount, 20.0) * 0.22) * sunGlow;
 
       if (dir.y > 0.0) {
+        vec2 grid = floor(dir.xz / (dir.y + 0.25) * 90.0);
+        color += vec3(0.9, 0.93, 1.0) * step(0.9975, hash(grid)) * stars * smoothstep(0.05, 0.3, dir.y);
+
         vec2 uv = dir.xz / (dir.y + 0.14) * 1.2 + time * 0.012;
         float cover = smoothstep(cloudLevel, cloudLevel + 0.28, clouds(uv)) * smoothstep(0.02, 0.22, dir.y);
-        color = mix(color, vec3(1.0, 0.98, 0.94), cover * 0.9);
+        color = mix(color, vec3(1.0, 0.98, 0.94) * cloudLight, cover * 0.9);
       }
 
       gl_FragColor = vec4(color, 1.0);
@@ -897,7 +1088,16 @@ function applyQuality() {
     sun.shadow.map?.dispose();
     sun.shadow.map = null;
   }
-  for (const tile of detailTiles) tile.count = Math.ceil(tile.userData.total * quality.detail);
+  updateTileCounts();
+}
+
+/** O't va gullar soni: sifatga bog'liq, qishda gullar ko'rinmaydi. */
+function updateTileCounts() {
+  const { detail } = QUALITY[profile.settings.quality];
+  for (const tile of detailTiles) {
+    const hiddenThisSeason = tile.userData.summerOnly && conditions.snow > 0;
+    tile.count = hiddenThisSeason ? 0 : Math.ceil(tile.userData.total * detail);
+  }
 }
 
 /* ==========================================================================
@@ -907,6 +1107,8 @@ function applyQuality() {
    ========================================================================== */
 
 const lowPolyMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+const gearMaterial = lowPolyMaterial.clone(); // qurollar: faslga bog'liq bo'yalmaydi
+lowPolyMaterial.onBeforeCompile = addSeasonShader;
 
 function painted(geometry, color, position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1]) {
   const shape = geometry.index ? geometry.toNonIndexed() : geometry;
@@ -1016,6 +1218,7 @@ function groundColor(x, y, z, color) {
 /** Yer bo'laklarga bo'linadi: kameraga ko'rinmaydigan bo'laklar chizilmaydi. */
 function createTerrain() {
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, map: createGrassTexture() });
+  material.onBeforeCompile = addSeasonShader;
   const color = new THREE.Color();
   const normal = new THREE.Vector3();
 
@@ -1062,6 +1265,7 @@ const waterMaterial = new THREE.ShaderMaterial({
     topColor: skyMaterial.uniforms.topColor,
     horizonColor: skyMaterial.uniforms.horizonColor,
     sunDirection: skyMaterial.uniforms.sunDirection,
+    frozen: { value: 0 },
     deepColor: { value: new THREE.Color('#1d4a52') },
     shallowColor: { value: new THREE.Color('#4f8a78') },
   },
@@ -1079,7 +1283,7 @@ const waterMaterial = new THREE.ShaderMaterial({
       #include <fog_vertex>
     }`,
   fragmentShader: /* glsl */ `
-    uniform float time;
+    uniform float time, frozen;
     uniform vec3 topColor, horizonColor, sunDirection, deepColor, shallowColor;
     varying vec3 vWorld;
     varying float vDepth;
@@ -1103,8 +1307,8 @@ const waterMaterial = new THREE.ShaderMaterial({
       vec2 p = vWorld.xz;
       float height = waves(p);
       vec3 normal = normalize(vec3(
-        (height - waves(p + vec2(0.3, 0.0))) * 0.55, 1.0,
-        (height - waves(p + vec2(0.0, 0.3))) * 0.55));
+        (height - waves(p + vec2(0.3, 0.0))) * 0.55 * (1.0 - frozen * 0.9), 1.0,
+        (height - waves(p + vec2(0.0, 0.3))) * 0.55 * (1.0 - frozen * 0.9)));
 
       vec3 toCamera = normalize(cameraPosition - vWorld);
       vec3 mirrored = reflect(-toCamera, normal);
@@ -1120,7 +1324,13 @@ const waterMaterial = new THREE.ShaderMaterial({
       color = mix(color, vec3(0.92, 0.95, 0.92), foam * 0.55);
       float alpha = mix(0.4, 0.93, smoothstep(0.0, 1.3, vDepth));
 
-      gl_FragColor = vec4(color, max(alpha, foam * 0.7));
+      // Muz: oqish yuza, ichida yorilish chiziqlari
+      vec3 ice = mix(vec3(0.62, 0.76, 0.84), vec3(0.86, 0.92, 0.95), noise(p * 0.7)) * (0.55 + sky * 0.6);
+      ice = mix(ice, vec3(0.95), smoothstep(0.47, 0.5, noise(p * 1.7)) * smoothstep(0.53, 0.5, noise(p * 1.7)) * 0.7);
+      color = mix(color, ice, frozen);
+      alpha = mix(max(alpha, foam * 0.7), 0.97, frozen);
+
+      gl_FragColor = vec4(color, alpha);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
       #include <fog_fragment>
@@ -1274,6 +1484,7 @@ function flowerGeometry() {
 const grassUniforms = { swayTime: skyMaterial.uniforms.time, swayWind: { value: new THREE.Vector2(0.3, 0) } };
 const grassMaterial = lowPolyMaterial.clone();
 grassMaterial.onBeforeCompile = (shader) => {
+  addSeasonShader(shader);
   Object.assign(shader.uniforms, grassUniforms);
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nuniform float swayTime;\nuniform vec2 swayWind;')
@@ -1318,7 +1529,7 @@ const detailTiles = [];
  * @param items {x, z, scale, tint?, sink?, y?} ko'rinishidagi massiv (y berilsa, aynan shu balandlikka qo'yiladi)
  * @param detail true bo'lsa, uzoqdagi hududlar o'chirib qo'yiladi
  */
-function addInstances(geometry, items, { castShadow = true, detail = false, material = lowPolyMaterial } = {}) {
+function addInstances(geometry, items, { castShadow = true, detail = false, summerOnly = false, material = lowPolyMaterial } = {}) {
   const tiles = new Map();
   for (const item of items) {
     const key = `${Math.floor(item.x / TILE_SIZE)},${Math.floor(item.z / TILE_SIZE)}`;
@@ -1344,6 +1555,7 @@ function addInstances(geometry, items, { castShadow = true, detail = false, mate
     scene.add(mesh);
     if (detail) {
       mesh.userData.total = tileItems.length;
+      mesh.userData.summerOnly = summerOnly;
       detailTiles.push(mesh);
     }
   }
@@ -1417,8 +1629,8 @@ function createForest() {
   addInstances(flowerGeometry(), scatter(3200, CONFIG.worldRadius, () => ({
     scale: randRange(0.9, 1.5),
     tint: pick(petals),
-  })), { castShadow: false, detail: true });
-  addInstances(mushroomGeometry(), scatter(640, CONFIG.worldRadius, () => ({ scale: randRange(0.8, 1.8) })), { detail: true });
+  })), { castShadow: false, detail: true, summerOnly: true });
+  addInstances(mushroomGeometry(), scatter(640, CONFIG.worldRadius, () => ({ scale: randRange(0.8, 1.8) })), { detail: true, summerOnly: true });
 }
 
 function reedGeometry() {
@@ -1914,12 +2126,12 @@ const SPECIES = {
     senseRange: 32, alertTime: [0.1, 0.3], stride: 3.4, grazeAngle: 0.95, lieHeight: 0.17,
   },
   duck: {
-    name: 'O‘rdak', points: 35, hp: 1, headDamage: 1, count: 14, model: duckModel(), scale: 1.25,
+    name: 'O‘rdak', points: 35, hp: 1, headDamage: 1, count: 14, warmOnly: true, model: duckModel(), scale: 1.25,
     walkSpeed: 0.9, runSpeed: 14, turnRate: 3, radius: 0.3,
     senseRange: 20, lieHeight: 0.08,
   },
   fish: {
-    name: 'Baliq', points: 20, hp: 1, headDamage: 1, count: 5, model: fishModel(), scale: 1.5,
+    name: 'Baliq', points: 20, hp: 1, headDamage: 1, count: 5, warmOnly: true, model: fishModel(), scale: 1.5,
     walkSpeed: 1, runSpeed: 1, turnRate: 1, radius: 0.2, senseRange: 0, lieHeight: 0.02,
   },
   wolf: {
@@ -1954,19 +2166,19 @@ function updateWind(dt) {
     wind.target = wind.angle + randRange(-1.4, 1.4);
   }
   wind.angle = damp(wind.angle, wind.target, 0.3, dt);
-  grassUniforms.swayWind.value.set(Math.sin(wind.angle), Math.cos(wind.angle)).multiplyScalar(0.34);
+  grassUniforms.swayWind.value.set(Math.sin(wind.angle), Math.cos(wind.angle)).multiplyScalar(conditions.windSway);
 }
 
-/** Shamol hidni hayvon tomonga olib borsa, u o'yinchini uzoqdan sezadi. Teskari bo'lsa, yaqindan. */
-function windSenseFactor(position) {
-  const dx = position.x - player.pos.x, dz = position.z - player.pos.z;
+/** Shamol hidni hayvon tomonga olib borsa, u ovchini uzoqdan sezadi. Teskari bo'lsa, yaqindan. */
+function windSenseFactor(position, hunter) {
+  const dx = position.x - hunter.pos.x, dz = position.z - hunter.pos.z;
   const towardsAnimal = (dx * Math.sin(wind.angle) + dz * Math.cos(wind.angle)) / (Math.hypot(dx, dz) || 1);
-  return 1 + towardsAnimal * (towardsAnimal > 0 ? 0.6 : 0.4);
+  return 1 + towardsAnimal * (towardsAnimal > 0 ? 0.6 : 0.4) * conditions.windStrength;
 }
 
-/** Hayvon bilan o'yinchi orasida daraxt yoki tosh bormi. */
-function isSightBlocked(position, distance) {
-  const direction = { x: (player.pos.x - position.x) / distance, y: 0, z: (player.pos.z - position.z) / distance };
+/** Hayvon bilan ovchi orasida daraxt yoki tosh bormi. */
+function isSightBlocked(position, hunter, distance) {
+  const direction = { x: (hunter.pos.x - position.x) / distance, y: 0, z: (hunter.pos.z - position.z) / distance };
   return rayToObstacle({ x: position.x, y: position.y + 1, z: position.z }, direction, distance) < distance;
 }
 
@@ -2036,7 +2248,7 @@ class Animal {
       } else {
         ({ x, z } = randomPoint(CONFIG.worldRadius - 6));
       }
-      const farEnough = Math.hypot(x - player.pos.x, z - player.pos.z) > minDistance;
+      const farEnough = hunters.every((hunter) => Math.hypot(x - hunter.pos.x, z - hunter.pos.z) > minDistance);
       if (farEnough && isDryLand(x, z) && isSpotFree(x, z, this.spec.radius + 0.3)) break;
     }
     return { x, z };
@@ -2080,11 +2292,19 @@ class Animal {
   }
 
   groundLevel(x, z) {
-    return terrainHeight(x, z);
+    const ground = terrainHeight(x, z);
+    return conditions.frozen ? Math.max(ground, WATER_LEVEL) : ground;
   }
 
+  /** Shu kompyuterdagi o'yinchigacha masofa: ko'rinish va ovoz uchun. */
   distanceToPlayer() {
     return Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
+  }
+
+  /** Eng yaqin ovchini topadi: hayvon sezish, qochish va hujumda shunga qaraydi. */
+  locatePrey() {
+    this.prey = nearestHunter(this.pos.x, this.pos.z);
+    this.preyDistance = Math.hypot(this.prey.pos.x - this.pos.x, this.prey.pos.z - this.pos.z);
   }
 
   faceTowards(x, z) {
@@ -2093,12 +2313,12 @@ class Animal {
 
   /** Hayvon o'yinchini qaysi masofadan sezadi: shovqin, shamol va ko'rish chizig'iga bog'liq. */
   senseDistance(dt, distance) {
-    const alertness = this.spec.aggressive ? conditions.predatorSense ?? 1 : 1;
-    const reach = this.spec.senseRange * player.noise * windSenseFactor(this.pos) * alertness;
+    const alertness = this.spec.aggressive ? conditions.predatorSense : conditions.preySense;
+    const reach = this.spec.senseRange * this.prey.noise * windSenseFactor(this.pos, this.prey) * alertness;
     this.sightClock -= dt;
     if (this.sightClock <= 0 && distance < reach * 1.5) {
       this.sightClock = 0.4;
-      this.sightBlocked = isSightBlocked(this.pos, distance);
+      this.sightBlocked = isSightBlocked(this.pos, this.prey, distance);
     }
     return this.sightBlocked ? reach * 0.7 : reach;
   }
@@ -2170,9 +2390,9 @@ class Animal {
     }
 
     // Tumandan narida hayvon chizilmaydi va kamroq hisoblanadi
-    const near = this.distanceToPlayer() < ANIMAL_VIEW_DISTANCE;
-    this.root.visible = near;
-    if (!near) {
+    this.locatePrey();
+    this.root.visible = this.distanceToPlayer() < ANIMAL_VIEW_DISTANCE;
+    if (this.preyDistance >= ANIMAL_VIEW_DISTANCE) {
       this.farClock += dt;
       if (this.farClock < 0.25) return;
       dt = this.farClock;
@@ -2181,13 +2401,13 @@ class Animal {
 
     const speedGoal = this.think(dt);
     this.move(dt, speedGoal);
-    if (near) this.animate(dt);
+    if (this.root.visible) this.animate(dt);
   }
 
   /** Holatlar mashinasi. Qaytariladigan qiymat: hozir qanday tezlikda yurish kerak. */
   think(dt) {
-    const { spec } = this;
-    const distance = this.distanceToPlayer();
+    const { spec, prey } = this;
+    const distance = this.preyDistance;
     const sensed = distance < this.senseDistance(dt, distance);
     this.stateTime -= dt;
 
@@ -2209,7 +2429,7 @@ class Animal {
 
       case 'alert':
         this.headGoal = -0.12;
-        this.faceTowards(player.pos.x, player.pos.z);
+        this.faceTowards(prey.pos.x, prey.pos.z);
         if (this.stateTime <= 0) {
           if (spec.aggressive) this.beginAttack();
           else this.beginFlee();
@@ -2218,7 +2438,7 @@ class Animal {
 
       case 'flee':
         this.headGoal = 0.1;
-        this.wantedHeading = Math.atan2(this.pos.x - player.pos.x, this.pos.z - player.pos.z)
+        this.wantedHeading = Math.atan2(this.pos.x - prey.pos.x, this.pos.z - prey.pos.z)
           + Math.sin(this.gait * 0.13) * 0.5;
         if (spec.zigzag) this.wantedHeading += Math.sin(this.gait * 0.45) * 0.9;
         // Chegaraga yetganda burilib, dunyo markazi tomon qochadi
@@ -2231,9 +2451,9 @@ class Animal {
 
       case 'charge':
         this.headGoal = 0.3;
-        this.faceTowards(player.pos.x, player.pos.z);
+        this.faceTowards(prey.pos.x, prey.pos.z);
         if (distance < spec.biteRange) {
-          damagePlayer(spec.damage, this);
+          strikeHunter(prey, spec.damage * conditions.damage, this);
           this.setState('recover', spec.recoverTime ?? 1.3);
         } else if (distance > spec.giveUpRange || game.state !== 'playing') {
           this.pickWanderTarget();
@@ -2243,7 +2463,7 @@ class Animal {
       case 'recover':
         // Urgandan keyin biroz chekinadi, so'ng yana yuguradi
         this.headGoal = 0.1;
-        this.wantedHeading = Math.atan2(this.pos.x - player.pos.x, this.pos.z - player.pos.z);
+        this.wantedHeading = Math.atan2(this.pos.x - prey.pos.x, this.pos.z - prey.pos.z);
         if (this.stateTime <= 0) this.setState(spec.pack ? 'stalk' : 'charge');
         return spec.walkSpeed * 2;
 
@@ -2253,7 +2473,7 @@ class Animal {
       case 'rear':
         // Ayiq orqa oyog'ida turib na'ra tortadi: bu qochish yoki otish uchun oxirgi imkoniyat
         this.headGoal = -0.3;
-        this.faceTowards(player.pos.x, player.pos.z);
+        this.faceTowards(prey.pos.x, prey.pos.z);
         if (this.stateTime <= 0) this.setState('charge');
         return 0;
     }
@@ -2286,7 +2506,7 @@ class Animal {
     }
 
     const angle = group.orbit + (pack.indexOf(this) / pack.length) * TAU;
-    const x = player.pos.x + Math.cos(angle) * 14, z = player.pos.z + Math.sin(angle) * 14;
+    const x = this.prey.pos.x + Math.cos(angle) * 14, z = this.prey.pos.z + Math.sin(angle) * 14;
     this.faceTowards(x, z);
     return clamp(Math.hypot(x - this.pos.x, z - this.pos.z) * 1.5, 1, spec.runSpeed * 0.75);
   }
@@ -2327,7 +2547,7 @@ class Animal {
     const aheadX = this.pos.x + Math.sin(this.wantedHeading) * 2.6;
     const aheadZ = this.pos.z + Math.cos(this.wantedHeading) * 2.6;
     const blocked = !isSpotFree(aheadX, aheadZ, this.spec.radius + 0.4)
-      || waterDepth(aheadX, aheadZ) > this.spec.wadeDepth;
+      || wadeDepthAt(aheadX, aheadZ) > this.spec.wadeDepth;
     if (blocked) this.wantedHeading += this.avoidSide * 1.1;
   }
 
@@ -2341,7 +2561,7 @@ class Animal {
 
     const nextX = pos.x + Math.sin(this.heading) * this.speed * dt;
     const nextZ = pos.z + Math.cos(this.heading) * this.speed * dt;
-    if (waterDepth(nextX, nextZ) < spec.wadeDepth + 0.15) {
+    if (wadeDepthAt(nextX, nextZ) < spec.wadeDepth + 0.15) {
       pos.x = nextX;
       pos.z = nextZ;
     }
@@ -2361,7 +2581,7 @@ class Animal {
     const front = terrainHeight(pos.x + sinH * 0.6, pos.z + cosH * 0.6);
     const back = terrainHeight(pos.x - sinH * 0.6, pos.z - cosH * 0.6);
     this.root.rotation.set(Math.atan2(back - front, 1.2), this.heading, 0);
-    pos.y = terrainHeight(pos.x, pos.z);
+    pos.y = this.groundLevel(pos.x, pos.z);
   }
 
   /** Yurgan hayvon yerda iz qoldiradi, yaralangani esa qon tomchilari ham. */
@@ -2530,7 +2750,7 @@ class Duck extends Animal {
   think(dt) {
     if (this.state === 'fly') return 0;
     this.stateTime -= dt;
-    const distance = this.distanceToPlayer();
+    const distance = this.preyDistance;
     if (distance < this.senseDistance(dt, distance)) {
       this.startle();
     } else if (this.stateTime <= 0) {
@@ -2601,9 +2821,10 @@ class Fish extends Animal {
   startle() {}
 
   leap() {
+    const watcher = pick(hunters);
     const lake = lakes.reduce((best, candidate) => (
-      Math.hypot(candidate.x - player.pos.x, candidate.z - player.pos.z)
-        < Math.hypot(best.x - player.pos.x, best.z - player.pos.z) ? candidate : best));
+      Math.hypot(candidate.x - watcher.pos.x, candidate.z - watcher.pos.z)
+        < Math.hypot(best.x - watcher.pos.x, best.z - watcher.pos.z) ? candidate : best));
     const { x, z } = randomLakePoint(lake);
     this.pos.set(x, WATER_LEVEL, z);
     this.heading = Math.random() * TAU;
@@ -2653,6 +2874,8 @@ function createAnimals() {
     let group = null, groupRoom = 0;
     for (let i = 0; i < spec.count; i++) {
       const animal = new AnimalClass(kind);
+      animal.id = animals.length;
+      animal.rosterRank = i / spec.count; // qiyinlikka qarab qancha yirtqich faol bo'lishini belgilaydi
       animals.push(animal);
       if (!spec.groupSize) continue;
       if (groupRoom === 0) {
@@ -2660,6 +2883,7 @@ function createAnimals() {
         groupRoom = Math.round(randRange(...spec.groupSize));
       }
       animal.group = group;
+      animal.rosterRank = group.members[0]?.rosterRank ?? animal.rosterRank; // to'da birga faol bo'ladi
       group.members.push(animal);
       groupRoom--;
     }
@@ -2670,8 +2894,9 @@ function updateAnimals(dt) {
   let attacker = null;
   let attackerDistance = 35;
   for (const animal of animals) {
+    if (animal.dormant) continue;
     animal.update(dt);
-    if (animal.state !== 'charge') continue;
+    if (animal.state !== 'charge' || animal.prey !== player) continue;
     const distance = animal.distanceToPlayer();
     if (distance < attackerDistance) {
       attacker = animal;
@@ -2691,6 +2916,9 @@ const player = {
   yaw: 0,
   pitch: 0,
   hp: CONFIG.player.maxHp,
+  id: 'me',
+  down: false,   // birga o'ynaganda: joni tugab yiqilgan
+  lampOn: false, // bosh chirog'i
   noise: 0,      // shovqin darajasi: hayvonlar sezish masofasini shunga ko'paytiradi
   crouching: false,
   crouch: 0,     // 0 = tik turgan, 1 = to'liq egilgan
@@ -2700,6 +2928,21 @@ const player = {
   aim: 0,        // 0 = oddiy, 1 = to'liq mo'ljalga olingan
   scope: 0,      // 0 = oddiy, 1 = durbindan qaralmoqda
 };
+
+// Hayvonlar sezadigan barcha ovchilar. Birga o'ynaganda bu ro'yxatga sheriklar ham qo'shiladi.
+const hunters = [player];
+
+function nearestHunter(x, z) {
+  let nearest = player, nearestDistance = Infinity;
+  for (const hunter of hunters) {
+    const distance = Math.hypot(hunter.pos.x - x, hunter.pos.z - z);
+    if (!hunter.down && distance < nearestDistance) {
+      nearest = hunter;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
 
 const input = {
   keys: {},
@@ -2727,7 +2970,7 @@ function updatePlayer(dt) {
   const sprinting = moving && !aiming && (keys.ShiftLeft || keys.ShiftRight);
   if (sprinting) player.crouching = false;
   // Suvda qadam og'irlashadi
-  const wading = clamp(waterDepth(player.pos.x, player.pos.z) / MAX_WADE_DEPTH, 0, 1);
+  const wading = clamp(wadeDepthAt(player.pos.x, player.pos.z) / MAX_WADE_DEPTH, 0, 1);
   const baseSpeed = sprinting ? cfg.sprintSpeed
     : player.crouching ? cfg.crouchSpeed
       : aiming ? cfg.aimSpeed : cfg.walkSpeed;
@@ -2745,8 +2988,8 @@ function updatePlayer(dt) {
   // Har bir o'q alohida tekshiriladi: chuqur suv bo'ylab sirpanib yurish mumkin
   const nextX = player.pos.x + player.velocity.x * dt;
   const nextZ = player.pos.z + player.velocity.z * dt;
-  const blockedX = waterDepth(nextX, player.pos.z) > MAX_WADE_DEPTH;
-  const blockedZ = waterDepth(player.pos.x, nextZ) > MAX_WADE_DEPTH;
+  const blockedX = wadeDepthAt(nextX, player.pos.z) > MAX_WADE_DEPTH;
+  const blockedZ = wadeDepthAt(player.pos.x, nextZ) > MAX_WADE_DEPTH;
   if (!blockedX) player.pos.x = nextX;
   if (!blockedZ) player.pos.z = nextZ;
   pushOutOfObstacles(player.pos, cfg.radius);
@@ -2761,7 +3004,8 @@ function updatePlayer(dt) {
   // Chuqurroq joyda o'yinchi loyga botmaydi: boshi suvdan yetarlicha baland qoladi
   player.crouch = damp(player.crouch, player.crouching ? 1 : 0, 10, dt);
   const eyeHeight = lerp(cfg.eyeHeight, cfg.crouchEyeHeight, player.crouch);
-  player.pos.y = Math.max(terrainHeight(player.pos.x, player.pos.z), WATER_LEVEL - 0.55) + eyeHeight;
+  const lowestStand = conditions.frozen ? WATER_LEVEL : WATER_LEVEL - 0.55;
+  player.pos.y = Math.max(terrainHeight(player.pos.x, player.pos.z), lowestStand) + eyeHeight;
 
   // Hayvonlar shovqinni eshitadi: turgan odamni kechroq, yugurganni ertaroq sezadi.
   // Egilish va buta orasida turish bu masofani qisqartiradi, suvda shaloplash esa oshiradi.
@@ -2770,8 +3014,9 @@ function updatePlayer(dt) {
     * (player.crouching ? 0.5 : 1)
     * (hidden ? 0.6 : 1)
     * (moving && wading > 0.05 ? 1.3 : 1)
-    * (conditions.noise ?? 1)
-    * (owns('camo') ? 0.8 : 1);
+    * conditions.noise
+    * (owns('camo') ? 0.8 : 1)
+    * (player.lampOn && conditions.night ? 1.35 : 1); // tunda chiroq uzoqdan ko'rinadi
   updateFieldHud(hidden);
 
   // Qadam va bosh tebranishi
@@ -2816,10 +3061,15 @@ function hintText(fromCenter, blockedByWater) {
   return nearbyTrackLabel;
 }
 
+/** Hayvon zarbasi: ovchi shu kompyuterdagi o'yinchi bo'lsa, zararni shu yerda hisoblaymiz. */
+function strikeHunter(hunter, amount, attacker) {
+  if (hunter === player) damagePlayer(amount, attacker);
+}
+
 /** @param attacker zarba kelgan hayvon: o'yinchi undan orqaga itariladi */
 function damagePlayer(amount, attacker) {
   if (game.state !== 'playing') return;
-  player.hp = Math.max(0, player.hp - amount);
+  player.hp = Math.max(0, player.hp - Math.round(amount));
   player.shake = 1;
   const dx = player.pos.x - attacker.pos.x, dz = player.pos.z - attacker.pos.z;
   const distance = Math.hypot(dx, dz) || 1;
@@ -2955,13 +3205,13 @@ weaponScene.add(viewModel);
 
 const weaponMeshes = {};
 for (const [id, geometry] of Object.entries({ rifle: rifleGeometry(), shotgun: shotgunGeometry(), bow: bowGeometry() })) {
-  weaponMeshes[id] = new THREE.Mesh(geometry, lowPolyMaterial);
+  weaponMeshes[id] = new THREE.Mesh(geometry, gearMaterial);
   weaponMeshes[id].visible = false;
   viewModel.add(weaponMeshes[id]);
 }
 
 const arrowShape = arrowGeometry();
-const nockedArrow = new THREE.Mesh(arrowShape, lowPolyMaterial);
+const nockedArrow = new THREE.Mesh(arrowShape, gearMaterial);
 nockedArrow.position.set(0, 0, 0.02);
 nockedArrow.rotation.y = Math.PI; // kamonda uchi oldinga (-Z) qaraydi
 weaponMeshes.bow.add(nockedArrow);
@@ -3067,7 +3317,7 @@ function showImpact(point, hitsTree) {
   if (hitsWater) {
     point.y = WATER_LEVEL;
     burst(point, '#dcebf0', 14, 3);
-    sound.splash();
+    if (!conditions.frozen) sound.splash();
   } else {
     burst(point, hitsTree ? '#6b4a2e' : '#6f6a45', 8, 2.5);
   }
@@ -3134,9 +3384,10 @@ function fire() {
     registerHit(animal, part, Math.max(1, Math.round(count / 3)), point);
   }
 
-  // O'q ovozi atrofdagi hayvonlarni cho'chitadi
+  // O'q ovozi atrofdagi hayvonlarni cho'chitadi. Guldurak paytida ovoz bosilib ketadi.
+  const alarmRadius = gun.alarmRadius * (storm.thunderLeft > 0 ? 0.35 : 1);
   for (const animal of animals) {
-    if (animal.alive && animal.root.visible && animal.distanceToPlayer() < gun.alarmRadius) animal.startle();
+    if (animal.alive && animal.root.visible && animal.distanceToPlayer() < alarmRadius) animal.startle();
   }
 }
 
@@ -3144,7 +3395,7 @@ function fire() {
 
 const ARROW_GRAVITY = 9;
 const arrows = Array.from({ length: 8 }, () => {
-  const mesh = new THREE.Mesh(arrowShape, lowPolyMaterial);
+  const mesh = new THREE.Mesh(arrowShape, gearMaterial);
   mesh.visible = false;
   scene.add(mesh);
   return { mesh, velocity: new THREE.Vector3(), flying: false, stuckFor: 0 };
@@ -3372,30 +3623,63 @@ for (let i = 0; i < rainPositions.length; i += 6) {
 }
 
 function updateRain(dt) {
-  rain.visible = Boolean(conditions.rain);
+  rain.visible = Boolean(conditions.rain || conditions.snowfall);
   if (!rain.visible) return;
+
+  // Qor sekin tushadi va shamolda ko'proq suzadi
+  const falling = conditions.snowfall ? 3.4 : 26;
+  const streak = conditions.snowfall ? 0.07 : 0.8;
+  const drift = (conditions.snowfall ? 1.6 : 3) * conditions.windStrength;
   const origin = camera.position, half = RAIN_BOX / 2;
   const wrap = (value, center) => ((value - center + half) % RAIN_BOX + RAIN_BOX) % RAIN_BOX - half + center;
-  const driftX = Math.sin(wind.angle) * 3, driftZ = Math.cos(wind.angle) * 3;
+  const driftX = Math.sin(wind.angle) * drift, driftZ = Math.cos(wind.angle) * drift;
   for (let i = 0; i < rainPositions.length; i += 6) {
     const x = wrap(rainPositions[i] + driftX * dt, origin.x);
-    const y = wrap(rainPositions[i + 1] - 26 * dt, origin.y + 6);
+    const y = wrap(rainPositions[i + 1] - falling * dt, origin.y + 6);
     const z = wrap(rainPositions[i + 2] + driftZ * dt, origin.z);
     rainPositions[i] = x;
     rainPositions[i + 1] = y;
     rainPositions[i + 2] = z;
     rainPositions[i + 3] = x - driftX * 0.03;
-    rainPositions[i + 4] = y + 0.8;
+    rainPositions[i + 4] = y + streak;
     rainPositions[i + 5] = z - driftZ * 0.03;
   }
   rain.geometry.attributes.position.needsUpdate = true;
+}
+
+// Momaqaldiroq: chaqmoq osmonni yoritadi, guldurak bir lahza o'q ovozini bosadi
+const storm = { nextFlash: 6, flash: 0, thunderLeft: 0 };
+
+function updateStorm(dt) {
+  if (!conditions.lightning) return;
+  storm.nextFlash -= dt;
+  storm.thunderLeft = Math.max(0, storm.thunderLeft - dt);
+  storm.flash = damp(storm.flash, 0, 8, dt);
+  if (storm.nextFlash <= 0) {
+    storm.nextFlash = randRange(7, 18);
+    storm.flash = 1;
+    storm.thunderLeft = 2.2;
+    sound.thunder();
+  }
+  skyLight.intensity = conditions.ambient + storm.flash * 2.8;
+}
+
+// Bosh chirog'i doim sahnada turadi, faqat kuchi o'zgaradi: aks holda shader qayta kompilyatsiya bo'ladi
+const headlamp = new THREE.SpotLight('#fff1d6', 0, 75, 0.46, 0.6, 1.15);
+scene.add(headlamp, headlamp.target);
+
+function updateHeadlamp() {
+  headlamp.intensity = player.lampOn ? 110 : 0;
+  headlamp.position.copy(camera.position);
+  camera.getWorldDirection(headlamp.target.position).multiplyScalar(10).add(camera.position);
 }
 
 /* --------------------------------------------------------------------------
    Izlar: bitta InstancedMesh ichida aylanma xotira. Eski izlar asta o'chadi.
    -------------------------------------------------------------------------- */
 
-const TRACK_LIFETIME = 50;
+const TRACK_LIFETIME = 50; // odatdagi umr, yomg'irda qisqaradi, qorda uzayadi
+const trackLifetime = () => TRACK_LIFETIME * conditions.trackLife;
 
 class TrackPool {
   constructor(geometry, color, capacity) {
@@ -3443,7 +3727,7 @@ class TrackPool {
   /** Oxirgi soniyalarda iz kichrayib yo'qoladi. */
   fade() {
     this.records.forEach((record, index) => {
-      const left = TRACK_LIFETIME - (elapsed - record.born);
+      const left = trackLifetime() - (elapsed - record.born);
       if (left < 12) this.write(index, record, record.size * clamp(left / 12, 0, 1));
     });
   }
@@ -3452,7 +3736,7 @@ class TrackPool {
   freshestNear(x, z, radius) {
     let freshest = null;
     for (const record of this.records) {
-      if (elapsed - record.born > TRACK_LIFETIME) continue;
+      if (elapsed - record.born > trackLifetime()) continue;
       if (Math.abs(record.x - x) > radius || Math.abs(record.z - z) > radius) continue;
       if (!freshest || record.born > freshest.born) freshest = record;
     }
@@ -3673,6 +3957,11 @@ const sound = {
   chime() {
     [660, 880, 1100].forEach((from, i) => this.tone({ from, volume: 0.08, duration: 0.2, delay: i * 0.09 }));
   },
+  thunder() {
+    const delay = randRange(0.3, 1.3);
+    this.noiseHit({ from: 420, to: 60, volume: 0.9, duration: 2.4, delay });
+    this.tone({ from: 60, to: 28, volume: 0.45, duration: 2, delay });
+  },
   heal() {
     this.tone({ from: 420, to: 700, volume: 0.1, duration: 0.3 });
   },
@@ -3767,6 +4056,12 @@ const ui = {
   warning: byId('warning'),
   vignette: byId('vignette'),
   hitArc: byId('hitArc'),
+  setup: byId('setup'),
+  setupRows: byId('setupRows'),
+  setupNote: byId('setupNote'),
+  setupStartBtn: byId('setupStartBtn'),
+  setupRandomBtn: byId('setupRandomBtn'),
+  setupBackBtn: byId('setupBackBtn'),
   touchControls: byId('touchControls'),
   touchButtons: byId('touchButtons'),
   joystick: byId('joystick'),
@@ -3864,7 +4159,8 @@ function updateFieldHud(hidden) {
   const windAngle = angleFromView(player.pos.x + Math.sin(wind.angle), player.pos.z + Math.cos(wind.angle));
   ui.windArrow.style.transform = `rotate(${windAngle}rad)`;
   ui.noiseFill.style.transform = `scaleX(${clamp(player.noise / 1.5, 0.03, 1)})`;
-  const stance = [player.crouching && 'Egilgan', hidden && 'Butada'].filter(Boolean).join(' · ');
+  const stance = [player.crouching && 'Egilgan', hidden && 'Butada', player.lampOn && 'Chiroq']
+    .filter(Boolean).join(' · ');
   if (ui.stanceLine.textContent !== stance) ui.stanceLine.textContent = stance;
 }
 
@@ -3936,6 +4232,7 @@ function createMissions() {
 
 const game = {
   state: 'menu',
+  mode: 'free', // free: erkin ov, mission: yakka missiya, team: birga ov
   score: 0,
   kills: {},
   missions: [],
@@ -3981,7 +4278,7 @@ function resetRound() {
     score: 0,
     shots: 0,
     hits: 0,
-    timeLeft: CONFIG.roundSeconds,
+    timeLeft: conditions.duration,
     kills: Object.fromEntries(Object.keys(SPECIES).map((kind) => [kind, 0])),
     missions: createMissions(),
   });
@@ -3999,12 +4296,21 @@ function resetRound() {
   nearbyTrackLabel = null;
   ui.reloadBar.classList.remove('active');
 
+  player.lampOn = conditions.night;
+  player.down = false;
+
   animals.forEach((animal) => {
     animal.spawned = false; // guruh a'zolari yangi joyda yo'lboshchisi yonida chiqishi uchun
     animal.state = 'graze';
+    // Qishda issiqsevarlar yo'q, oson qiyinlikda yirtqichlar kamroq
+    animal.dormant = (conditions.frozen && Boolean(animal.spec.warmOnly))
+      || (Boolean(animal.spec.aggressive) && animal.rosterRank >= conditions.predators);
   });
   // Yirtqichlar boshlanishda uzoqroqda bo'ladi, o'yinchiga tayyorlanishga vaqt qoladi
-  animals.forEach((animal) => animal.spawn(animal.spec.aggressive ? 85 : 30));
+  animals.forEach((animal) => {
+    animal.spawn(animal.spec.aggressive ? 85 : 30);
+    if (animal.dormant) animal.root.visible = false;
+  });
 
   updateScoreHud();
   updateAmmoHud();
@@ -4015,10 +4321,11 @@ function resetRound() {
   setHint(null);
 }
 
-/** Raund uchun vaqt va ob-havoni tanlaydi: oddiy kunduz boshqalaridan ko'proq chiqadi. */
-function chooseConditions() {
-  const { day, dawn, dusk, mist, rain: rainy } = CONDITIONS;
-  applyConditions(pick([day, day, dawn, dusk, mist, rainy]));
+/** Tanlangan ov sharoitini sahnaga qo'llaydi. */
+function applySetup(setup) {
+  applyConditions(buildConditions(setup));
+  waterMaterial.uniforms.frozen.value = conditions.frozen ? 1 : 0;
+  updateTileCounts();
   ui.conditionLine.textContent = conditions.name;
   sound.setRain(Boolean(conditions.rain));
 }
@@ -4026,7 +4333,7 @@ function chooseConditions() {
 /** Sichqoncha qulflanganda yoki erkin rejimda o'yinni boshlaydi/davom ettiradi. */
 function enterPlay() {
   game.state = 'playing';
-  ui.menu.hidden = ui.pause.hidden = ui.result.hidden = true;
+  ui.menu.hidden = ui.pause.hidden = ui.result.hidden = ui.setup.hidden = true;
   ui.hud.hidden = false;
   viewModel.visible = true;
   document.body.classList.toggle('free-mouse', pointer.free);
@@ -4075,11 +4382,24 @@ function onLockFailed() {
   }
 }
 
+/** O'yinni to'xtatib bosh menyuga qaytadi. */
+function returnToMenu() {
+  game.state = 'menu';
+  player.noise = 0;
+  releaseInput();
+  viewModel.visible = false;
+  sound.context?.resume();
+  document.exitPointerLock?.();
+  ui.hud.hidden = ui.pause.hidden = ui.result.hidden = true;
+  ui.menu.hidden = false;
+}
+
 function startRound() {
   if (IS_TOUCH_DEVICE) document.documentElement.requestFullscreen?.().catch(() => {});
   sound.init();
+  game.mode = 'free';
+  applySetup(profile.setup);
   resetRound();
-  chooseConditions();
   game.state = 'paused'; // sichqoncha qulflangach "playing" ga o'tadi
   requestLock();
 }
@@ -4116,7 +4436,8 @@ function endRound(reason) {
 
   // Tanga: ochkodan va bajarilgan topshiriqlardan
   const finished = game.missions.filter((mission) => mission.progress >= mission.goal);
-  const coins = Math.round(game.score / 10) + finished.reduce((sum, mission) => sum + mission.reward, 0);
+  const earned = Math.round(game.score / 10) + finished.reduce((sum, mission) => sum + mission.reward, 0);
+  const coins = Math.round(earned * conditions.reward); // qiyin sharoit ko'proq tanga beradi
   profile.coins += coins;
 
   const previousBest = profile.best;
@@ -4207,6 +4528,7 @@ document.addEventListener('keydown', (event) => {
   if (event.repeat) return;
   if (event.code === 'KeyC') player.crouching = !player.crouching;
   if (event.code === 'KeyH') useMedkit();
+  if (event.code === 'KeyF') player.lampOn = !player.lampOn;
   if (event.code === 'Digit1') trySwitchWeapon('rifle');
   if (event.code === 'Digit2') trySwitchWeapon('shotgun');
   if (event.code === 'Digit3') trySwitchWeapon('bow');
@@ -4239,6 +4561,7 @@ const TOUCH_BUTTONS = [
   { id: 'swap', label: 'Qurol', press: cycleWeapon, isAvailable: () => owns('shotgun') || owns('bow') },
   { id: 'scope', label: 'Durbin', press: startScoping, release: stopScoping, isAvailable: () => owns('binoculars') },
   { id: 'heal', label: 'Dori', press: useMedkit, isAvailable: () => profile.medkits > 0 },
+  { id: 'lamp', label: 'Chiroq', press: () => { player.lampOn = !player.lampOn; }, isOn: () => player.lampOn, isAvailable: () => conditions.night },
   { id: 'pause', label: 'II', press: pauseRound },
 ];
 
@@ -4324,9 +4647,69 @@ window.addEventListener('blur', () => {
   if (pointer.free && game.state === 'playing') pauseRound();
 });
 
-ui.startBtn.addEventListener('click', startRound);
+ui.startBtn.addEventListener('click', showSetup);
 ui.againBtn.addEventListener('click', startRound);
 ui.resumeBtn.addEventListener('click', resumeRound);
+document.querySelectorAll('[data-return-menu]').forEach((button) => button.addEventListener('click', returnToMenu));
+
+/* Ov sharoitini tanlash */
+
+function renderSetup() {
+  const setup = profile.setup;
+  ui.setupNote.textContent = conditions.note || 'Odatdagi sharoit.';
+  for (const button of ui.setupRows.querySelectorAll('button')) {
+    button.setAttribute('aria-pressed', String(setup[button.dataset.option] === button.dataset.choice));
+  }
+}
+
+function changeSetup(option, choice) {
+  profile.setup[option] = choice;
+  normalizeSetup(profile.setup, option);
+  saveProfile();
+  applySetup(profile.setup);
+  renderSetup();
+}
+
+function randomizeSetup() {
+  for (const [option, { choices }] of Object.entries(SETUP_OPTIONS)) {
+    if (option !== 'difficulty' && option !== 'duration') profile.setup[option] = pick(Object.keys(choices));
+  }
+  changeSetup('weather', profile.setup.weather);
+}
+
+function showSetup() {
+  applySetup(profile.setup);
+  renderSetup();
+  ui.menu.hidden = true;
+  ui.setup.hidden = false;
+}
+
+ui.setupRows.replaceChildren(...Object.entries(SETUP_OPTIONS).map(([option, { label, choices }]) => {
+  const row = document.createElement('div');
+  row.className = 'setting';
+  const head = document.createElement('span');
+  head.className = 'setting-head';
+  head.textContent = label;
+  const buttons = document.createElement('div');
+  buttons.className = 'segmented';
+  for (const [choice, { name }] of Object.entries(choices)) {
+    const button = document.createElement('button');
+    button.textContent = name;
+    button.dataset.option = option;
+    button.dataset.choice = choice;
+    button.addEventListener('click', () => changeSetup(option, choice));
+    buttons.append(button);
+  }
+  row.append(head, buttons);
+  return row;
+}));
+
+ui.setupStartBtn.addEventListener('click', startRound);
+ui.setupRandomBtn.addEventListener('click', randomizeSetup);
+ui.setupBackBtn.addEventListener('click', () => {
+  ui.setup.hidden = true;
+  ui.menu.hidden = false;
+});
 
 /* Sozlamalar oynasi */
 
@@ -4422,6 +4805,8 @@ createWater();
 createForest();
 createShoreline();
 createAnimals();
+Math.random = nativeRandom; // dunyo tayyor: bundan keyingi tasodif har kompyuterda o'zicha
+applySetup(profile.setup);
 applyQuality();
 
 // Bosh menyudagi hayvonlar ro'yxati to'g'ridan-to'g'ri sozlamalardan olinadi
@@ -4473,6 +4858,8 @@ function frame() {
   updateParticles(dt);
   updateMotes(dt, elapsed);
   updateRain(dt);
+  updateStorm(dt);
+  updateHeadlamp();
   updateSun(player.pos);
   updateDetailTiles();
   skyDome.position.copy(camera.position);
@@ -4489,7 +4876,7 @@ frame();
 // Hammasi tayyor: tugmani yoqamiz
 window.ovchiReady = true;
 ui.startBtn.disabled = false;
-ui.startBtn.textContent = 'Boshlash';
+ui.startBtn.textContent = 'Erkin ov';
 </script>
 </body>
 </html>
