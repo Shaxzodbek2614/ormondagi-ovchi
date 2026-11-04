@@ -55,6 +55,7 @@ function beginTeamRound(setup, teamMission) {
     if (member.hunter) member.hunter.down = false;
     member.lastSeen = performance.now(); // xonada kutilgan vaqt uzilish deb hisoblanmasin
   }
+  network.lastWorldAt = performance.now();
   game.reviveProgress = 0;
   game.myRole = null;
   game.marks = [];
@@ -144,6 +145,9 @@ function updateNetwork(dt) {
   }
 
   if (game.mode !== 'team' || game.state !== 'playing') return;
+  // Xost kutilmaganda o'chib qolsa, ulanish yopilgani darrov bilinmasligi mumkin
+  if (network.isClient && performance.now() - network.lastWorldAt > CLIENT_TIMEOUT) onHostLost();
+
   network.sendClock -= dt;
   if (network.isClient && network.sendClock <= 0) {
     network.sendClock = SEND_INTERVAL.player;
@@ -260,6 +264,7 @@ const CLIENT_MESSAGES = {
     }
   },
   world(message) {
+    network.lastWorldAt = performance.now();
     game.timeLeft = message.time;
     game.score = message.score;
     wind.angle = message.wind;
