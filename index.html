@@ -2,11 +2,12 @@
 <html lang="uz">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>O‘rmondagi ovchi</title>
 
 <style>
   :root {
+    color-scheme: dark;
     --ink: #f3ead6;
     --ink-soft: #c9c2ad;
     --moss: #10170f;
@@ -36,7 +37,10 @@
   body.free-mouse { cursor: none; }
 
   /* ---------- O'yin vaqtidagi ko'rsatkichlar (HUD) ---------- */
-  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #hud {
+    position: fixed; pointer-events: none;
+    inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
 
   .plate {
     position: absolute;
@@ -164,7 +168,12 @@
     position: absolute; top: 50%; left: 50%; width: 52px; height: 52px; margin: -26px;
     border-radius: 50%; background: rgba(243, 234, 214, .45);
   }
+  #touchButtons {
+    position: absolute; pointer-events: none;
+    inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
   #touchButtons button {
+    pointer-events: auto;
     position: absolute; display: grid; place-items: center; width: 60px; height: 60px; padding: 0;
     font: 700 11px var(--ui-font); color: var(--ink); touch-action: none;
     background: rgba(13, 19, 12, .5); border: 1px solid var(--line); border-radius: 50%;
