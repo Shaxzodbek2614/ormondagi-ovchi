@@ -150,6 +150,73 @@
     #hint, #warning { white-space: normal; width: max-content; max-width: 90%; text-align: center; }
   }
 
+  /* ---------- Telefon ---------- */
+  .touch-note, #rotateHint { display: none; }
+  body.touch .touch-note { display: block; margin: 0; font-size: 14px; color: var(--ink-soft); }
+  body.touch .controls { display: none; }
+
+  #touchControls { position: fixed; inset: 0; touch-action: none; -webkit-touch-callout: none; }
+  #joystick {
+    position: absolute; width: 120px; height: 120px; margin: -60px;
+    border: 2px solid var(--line); border-radius: 50%; background: rgba(13, 19, 12, .3); pointer-events: none;
+  }
+  #joystick i {
+    position: absolute; top: 50%; left: 50%; width: 52px; height: 52px; margin: -26px;
+    border-radius: 50%; background: rgba(243, 234, 214, .45);
+  }
+  #touchButtons button {
+    position: absolute; display: grid; place-items: center; width: 60px; height: 60px; padding: 0;
+    font: 700 11px var(--ui-font); color: var(--ink); touch-action: none;
+    background: rgba(13, 19, 12, .5); border: 1px solid var(--line); border-radius: 50%;
+  }
+  #touchButtons button.on { color: #1b1407; background: var(--amber); }
+  #touchButtons [data-touch=fire] { right: 24px; bottom: 26px; width: 86px; height: 86px; font-size: 14px; background: rgba(224, 83, 63, .62); }
+  #touchButtons [data-touch=aim] { right: 122px; bottom: 22px; }
+  #touchButtons [data-touch=reload] { right: 118px; bottom: 92px; }
+  #touchButtons [data-touch=crouch] { right: 58px; bottom: 126px; }
+  #touchButtons [data-touch=sprint] { right: 188px; bottom: 22px; }
+  #touchButtons [data-touch=swap] { right: 184px; bottom: 92px; }
+  #touchButtons [data-touch=scope] { right: 124px; bottom: 162px; }
+  #touchButtons [data-touch=heal] { right: 190px; bottom: 162px; }
+  #touchButtons [data-touch=pause] { top: 66px; left: 50%; width: 44px; height: 44px; margin-left: -22px; }
+
+  /* Telefonda pastki burchaklar barmoqlar uchun bo'sh qoladi, ko'rsatkichlar tepaga chiqadi */
+  body.touch .plate { padding: 5px 9px; }
+  body.touch .value { font-size: 20px; }
+  body.touch .label { font-size: 9.5px; }
+  body.touch #scorePlate { top: 8px; left: 8px; min-width: 0; }
+  body.touch #killLine, body.touch #missionList, body.touch #stanceLine, body.touch #medkitLine { display: none; }
+  body.touch #timePlate { top: 8px; left: 50%; right: auto; transform: translateX(-50%); min-width: 0; }
+  body.touch #fieldPlate { top: 8px; right: 8px; width: 104px; }
+  body.touch #hpPlate { top: 8px; bottom: auto; left: 92px; width: 118px; }
+  body.touch #hpValue { font-size: 14px; }
+  body.touch #ammoPlate { top: 8px; bottom: auto; right: 120px; width: auto; min-width: 74px; }
+  body.touch #ammoPips { display: none; }
+  body.touch #hint { bottom: auto; top: 68px; font-size: 13px; }
+  body.touch #warning { top: 118px; font-size: 13px; }
+
+  /* Past ekranlarda menyu tugmalari ko'rinib tursin */
+  @media (max-height: 520px) {
+    .screen { padding: 12px; }
+    h1 { font-size: 34px; }
+    h1 br, .lead, .touch-note { display: none !important; }
+    #preyList { margin: 8px 0 0; }
+    #preyList li { padding: 3px 0; font-size: 13px; }
+    .eyebrow { margin-bottom: 2px; }
+    button.primary, button.secondary { margin-top: 10px; padding: 10px 18px; }
+    .card { padding: 14px 20px; }
+    #finalScore { font-size: 44px; margin-top: 2px; }
+    #finalBest { margin-bottom: 6px; }
+    #finalTable td { padding: 3px 0; }
+  }
+
+  @media (pointer: coarse) and (orientation: portrait) {
+    body.playing #rotateHint {
+      position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
+      font: 400 26px var(--title-font); background: var(--moss);
+    }
+  }
+
   /* Durbindan qaraganda ikki doira ko'rinadi */
   #binoculars {
     position: fixed; inset: 0; pointer-events: none; background: #050505;
@@ -308,6 +375,13 @@
   <div id="warning" hidden>Cho‘chqa hujum qilmoqda!</div>
 </div>
 
+<!-- Telefon boshqaruvi: tugmalar kod bilan yaratiladi -->
+<div id="touchControls" hidden>
+  <div id="joystick" hidden><i></i></div>
+  <div id="touchButtons"></div>
+</div>
+<div id="rotateHint">Telefonni yotqizib ushlang</div>
+
 <div id="binoculars" hidden></div>
 <div id="vignette"></div>
 
@@ -315,9 +389,10 @@
 <section class="screen" id="menu">
   <div id="menuPanel">
     <p class="eyebrow">Uch daqiqa, bitta miltiq</p>
-    <h1>O‘rmondagi<br>ovchi</h1>
+    <h1>O‘rmondagi <br>ovchi</h1>
     <p class="lead">Yaqinlashsangiz hayvonlar qochadi, o‘q ovozi esa butun atrofni uyg‘otadi. Sekin yuring, boshga mo‘ljal oling. Qizil yozilganlar sizga hujum qiladi.</p>
     <ul id="preyList"></ul>
+    <p class="touch-note">Chap tomonda barmoq bilan yuring, o‘ng tomonda suring va qarang. Tugmalar ekranda.</p>
     <dl class="controls">
       <dt><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dt><dd>Yurish</dd>
       <dt>Sichqoncha</dt><dd>Qarash</dd>
@@ -446,13 +521,16 @@ const QUALITY = {
    Maxfiy rejimda localStorage ishlamasligi mumkin, bu holda ma'lumot shunchaki saqlanmaydi.
    -------------------------------------------------------------------------- */
 
+// Sensorli ekran asosiy boshqaruv bo'lgan qurilma: telefon yoki planshet
+const IS_TOUCH_DEVICE = window.matchMedia('(pointer: coarse)').matches;
+
 const PROFILE_KEY = 'ormondagi-ovchi-profil';
 const DEFAULT_PROFILE = {
   best: 0,
   coins: 0,
   owned: [],    // sotib olingan jihozlar
   medkits: 0,
-  settings: { sensitivity: 1, volume: 0.8, quality: 'high' },
+  settings: { sensitivity: 1, volume: 0.8, quality: IS_TOUCH_DEVICE ? 'low' : 'high' },
 };
 
 function loadProfile() {
@@ -516,7 +594,7 @@ function layeredNoise(x, z) {
 }
 
 /* ==========================================================================
-   DUNYO XARITASI: yer balandligi, daryo va ko'llar
+   3. DUNYO XARITASI: yer balandligi, daryo va ko'llar
    Hammasi o'yin boshida bir marta hisoblanib jadvalga yoziladi. Keyin balandlikni
    so'rash juda arzon, chunki u shunchaki jadvaldan o'qiladi.
    ========================================================================== */
@@ -647,7 +725,7 @@ const waterDepth = (x, z) => WATER_LEVEL - terrainHeight(x, z);
 const isDryLand = (x, z) => waterDepth(x, z) < -0.3;
 
 /* ==========================================================================
-   3. SAHNA: renderer, kameralar, yorug'lik, osmon
+   4. SAHNA: renderer, kameralar, yorug'lik, osmon
    ========================================================================== */
 
 const canvas = document.getElementById('game');
@@ -814,7 +892,7 @@ function applyQuality() {
 }
 
 /* ==========================================================================
-   4. GEOMETRIK SHAKLLAR YIG'UVCHISI
+   5. GEOMETRIK SHAKLLAR YIG'UVCHISI
    Har bir model oddiy shakllardan yig'iladi va bitta geometriyaga birlashtiriladi.
    Ranglar vertex'larga yoziladi, shuning uchun butun model bitta material bilan chiziladi.
    ========================================================================== */
@@ -857,7 +935,7 @@ function lumpy(radius, color, position, scale = [1, 1, 1], strength = 0.28) {
 }
 
 /* ==========================================================================
-   5. YER
+   6. YER
    ========================================================================== */
 
 /** Yer uchun kod bilan chizilgan mayda o't teksturasi. */
@@ -962,7 +1040,7 @@ function createTerrain() {
 }
 
 /* ==========================================================================
-   SUV: daryo va ko'llar yuzasi
+   7. SUV: daryo va ko'llar yuzasi
    ========================================================================== */
 
 const waterMaterial = new THREE.ShaderMaterial({
@@ -1059,7 +1137,7 @@ function createWater() {
 }
 
 /* ==========================================================================
-   6. TO'SIQLAR PANJARASI
+   8. TO'SIQLAR PANJARASI
    Daraxt va toshlarni kataklarga bo'lib saqlaymiz: to'qnashuvni tekshirganda
    yuzlab ob'ektni emas, faqat yaqin atrofdagilarini ko'rib chiqamiz.
    ========================================================================== */
@@ -1112,7 +1190,7 @@ function pushOutOfObstacles(position, radius) {
 }
 
 /* ==========================================================================
-   7. O'RMON: daraxtlar, butalar, toshlar, o'tlar
+   9. O'RMON: daraxtlar, butalar, toshlar, o'tlar
    Bir xil ob'ektlar InstancedMesh bilan chiziladi: minglab nusxa uchun bitta chizish buyrug'i.
    ========================================================================== */
 
@@ -1373,7 +1451,7 @@ function createShoreline() {
 }
 
 /* ==========================================================================
-   8. HAYVON MODELLARI
+   10. HAYVON MODELLARI
    Tana qutilardan emas, yumaloq kesimlardan "cho'zib" yasaladi (loft). Har bir model
    oldinga (+Z) qaraydi, oyoqlari y=0 da turadi. Bo'g'inlar alohida qismlar: ularni
    aylantirib animatsiya qilamiz.
@@ -1795,7 +1873,7 @@ function fishModel() {
 }
 
 /* ==========================================================================
-   9. HAYVON TURLARI VA XULQ-ATVORI
+   11. HAYVON TURLARI VA XULQ-ATVORI
    ========================================================================== */
 
 const SPECIES = {
@@ -2595,7 +2673,7 @@ function updateAnimals(dt) {
 }
 
 /* ==========================================================================
-   10. O'YINCHI
+   12. O'YINCHI
    ========================================================================== */
 
 const player = {
@@ -2622,6 +2700,8 @@ const input = {
   lookX: 0,      // shu kadrdagi sichqoncha siljishi (miltiq tebranishi uchun)
   lookY: 0,
   edgeTurn: 0,   // erkin sichqoncha rejimida kursor ekran chetida bo'lsa: -1..1
+  stickX: 0,     // telefondagi joystick: -1..1
+  stickY: 0,
 };
 
 function updatePlayer(dt) {
@@ -2630,9 +2710,10 @@ function updatePlayer(dt) {
 
   player.yaw -= input.edgeTurn * 1.8 * dt;
 
-  const forward = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
-  const strafe = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-  const moving = forward !== 0 || strafe !== 0;
+  const forward = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - input.stickY;
+  const strafe = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + input.stickX;
+  const throttle = Math.min(1, Math.hypot(forward, strafe)); // joystick qanchalik surilgan
+  const moving = throttle > 0.12;
   const aiming = input.aiming && weapon.reloadLeft <= 0;
   const sprinting = moving && !aiming && (keys.ShiftLeft || keys.ShiftRight);
   if (sprinting) player.crouching = false;
@@ -2648,8 +2729,9 @@ function updatePlayer(dt) {
   const wishX = -sin * forward + cos * strafe;
   const wishZ = -cos * forward - sin * strafe;
   const length = Math.hypot(wishX, wishZ) || 1;
-  player.velocity.x = damp(player.velocity.x, (wishX / length) * (moving ? speed : 0), 10, dt);
-  player.velocity.z = damp(player.velocity.z, (wishZ / length) * (moving ? speed : 0), 10, dt);
+  const targetSpeed = moving ? speed * throttle : 0;
+  player.velocity.x = damp(player.velocity.x, (wishX / length) * targetSpeed, 10, dt);
+  player.velocity.z = damp(player.velocity.z, (wishZ / length) * targetSpeed, 10, dt);
 
   // Har bir o'q alohida tekshiriladi: chuqur suv bo'ylab sirpanib yurish mumkin
   const nextX = player.pos.x + player.velocity.x * dt;
@@ -2747,7 +2829,7 @@ function damagePlayer(amount, attacker) {
 }
 
 /* ==========================================================================
-   11. QUROLLAR VA OTISH
+   13. QUROLLAR VA OTISH
    ========================================================================== */
 
 const position3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -3185,7 +3267,7 @@ function updateWeapon(dt) {
 }
 
 /* ==========================================================================
-   12. EFFEKTLAR: zarrachalar va havodagi changlar
+   14. EFFEKTLAR: zarrachalar va havodagi changlar
    ========================================================================== */
 
 const MAX_PARTICLES = 160;
@@ -3402,7 +3484,7 @@ function updateTracks(dt) {
 }
 
 /* ==========================================================================
-   13. OVOZ — barcha ovozlar WebAudio bilan shu yerning o'zida yasaladi
+   15. OVOZ — barcha ovozlar WebAudio bilan shu yerning o'zida yasaladi
    ========================================================================== */
 
 const sound = {
@@ -3647,7 +3729,7 @@ const sound = {
 };
 
 /* ==========================================================================
-   14. EKRANDAGI KO'RSATKICHLAR
+   16. EKRANDAGI KO'RSATKICHLAR
    ========================================================================== */
 
 const byId = (id) => document.getElementById(id);
@@ -3676,6 +3758,10 @@ const ui = {
   warning: byId('warning'),
   vignette: byId('vignette'),
   hitArc: byId('hitArc'),
+  touchControls: byId('touchControls'),
+  touchButtons: byId('touchButtons'),
+  joystick: byId('joystick'),
+  joystickKnob: document.querySelector('#joystick > i'),
   weaponName: byId('weaponName'),
   missionList: byId('missionList'),
   conditionLine: byId('conditionLine'),
@@ -3812,13 +3898,13 @@ function showPopup(text) {
 }
 
 /* ==========================================================================
-   15. O'YIN HOLATI
+   17. O'YIN HOLATI
    Holatlar: menu -> playing <-> paused -> over -> (qayta) playing
    ========================================================================== */
 
 // Odatda sichqoncha qulflanadi (Pointer Lock). Agar brauzer bunga ruxsat bermasa,
 // "erkin" rejim yoqiladi: kursor ekran chetiga yetganda kamera o'zi buriladi.
-const pointer = { lockWorked: false, free: false };
+const pointer = { lockWorked: false, free: IS_TOUCH_DEVICE };
 
 // Har bir tur uchun topshiriqda nechta ovlash kerakligi
 const MISSION_GOALS = { rabbit: 3, deer: 2, fox: 1, boar: 2, duck: 1, wolf: 2, bear: 1, fish: 1 };
@@ -3935,15 +4021,19 @@ function enterPlay() {
   ui.hud.hidden = false;
   viewModel.visible = true;
   document.body.classList.toggle('free-mouse', pointer.free);
+  document.body.classList.add('playing');
+  showTouchControls(true);
   sound.context?.resume();
 }
 
 /** Bosilgan tugmalar holatini tozalaydi: o'yin to'xtaganda hech narsa "yopishib" qolmasin. */
 function releaseInput() {
   input.keys = {};
-  input.aiming = input.fire = input.scoping = false;
-  input.edgeTurn = 0;
-  ui.binoculars.hidden = true;
+  input.aiming = input.fire = false;
+  input.edgeTurn = input.stickX = input.stickY = 0;
+  stopScoping();
+  document.body.classList.remove('playing');
+  showTouchControls(false);
 }
 
 function pauseRound() {
@@ -3977,6 +4067,7 @@ function onLockFailed() {
 }
 
 function startRound() {
+  if (IS_TOUCH_DEVICE) document.documentElement.requestFullscreen?.().catch(() => {});
   sound.init();
   resetRound();
   chooseConditions();
@@ -4051,21 +4142,37 @@ function updateRound(dt) {
 }
 
 /* ==========================================================================
-   16. BOSHQARUV
+   18. BOSHQARUV
    ========================================================================== */
 
 document.addEventListener('pointerlockchange', onPointerLockChange);
 document.addEventListener('pointerlockerror', onLockFailed);
 
-document.addEventListener('mousemove', (event) => {
-  if (game.state !== 'playing') return;
+/** Sichqoncha yoki barmoq siljishini kamera burilishiga aylantiradi. */
+function turnView(dx, dy) {
   // Mo'ljalga olganda kamera sekinroq aylanadi, shunda uzoqdagi nishonni ushlash oson
   const zoom = lerp(lerp(1, 0.55, player.aim), 0.22, player.scope);
   const sensitivity = CONFIG.player.lookSensitivity * profile.settings.sensitivity * zoom;
-  player.yaw -= event.movementX * sensitivity;
-  player.pitch = clamp(player.pitch - event.movementY * sensitivity, -1.45, 1.45);
-  input.lookX += event.movementX;
-  input.lookY += event.movementY;
+  player.yaw -= dx * sensitivity;
+  player.pitch = clamp(player.pitch - dy * sensitivity, -1.45, 1.45);
+  input.lookX += dx;
+  input.lookY += dy;
+}
+
+function startScoping() {
+  if (!owns('binoculars')) return;
+  input.scoping = true;
+  ui.binoculars.hidden = false;
+}
+
+function stopScoping() {
+  input.scoping = false;
+  ui.binoculars.hidden = true;
+}
+
+document.addEventListener('mousemove', (event) => {
+  if (game.state !== 'playing') return;
+  turnView(event.movementX, event.movementY);
 
   if (pointer.free) {
     const edge = event.clientX / window.innerWidth;
@@ -4094,19 +4201,115 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'Digit1') trySwitchWeapon('rifle');
   if (event.code === 'Digit2') trySwitchWeapon('shotgun');
   if (event.code === 'Digit3') trySwitchWeapon('bow');
-  if (event.code === 'KeyB' && owns('binoculars')) {
-    input.scoping = true;
-    ui.binoculars.hidden = false;
-  }
+  if (event.code === 'KeyB') startScoping();
   if (event.code === 'Escape' && pointer.free) pauseRound(); // qulflangan rejimda buni brauzer qiladi
 });
 document.addEventListener('keyup', (event) => {
   input.keys[event.code] = false;
-  if (event.code === 'KeyB') {
-    input.scoping = false;
-    ui.binoculars.hidden = true;
-  }
+  if (event.code === 'KeyB') stopScoping();
 });
+
+/* Telefon boshqaruvi */
+
+const TOUCH_LOOK_SPEED = 1.7;
+const STICK_RADIUS = 56;
+
+/** Keyingi sotib olingan qurolga o'tadi. */
+function cycleWeapon() {
+  const available = Object.keys(WEAPONS).filter((id) => id === 'rifle' || owns(id));
+  trySwitchWeapon(available[(available.indexOf(weapon.current) + 1) % available.length]);
+}
+
+// isOn: tugma yoqilgan holatda ko'rinadi, isAvailable: tugma faqat kerak bo'lganda chiqadi
+const TOUCH_BUTTONS = [
+  { id: 'fire', label: 'Otish', press: () => { input.fire = true; } },
+  { id: 'aim', label: 'Mo‘ljal', press: () => { input.aiming = !input.aiming; }, isOn: () => input.aiming },
+  { id: 'reload', label: 'O‘qlash', press: startReload },
+  { id: 'crouch', label: 'Egilish', press: () => { player.crouching = !player.crouching; }, isOn: () => player.crouching },
+  { id: 'sprint', label: 'Yugurish', press: () => { input.keys.ShiftLeft = !input.keys.ShiftLeft; }, isOn: () => input.keys.ShiftLeft },
+  { id: 'swap', label: 'Qurol', press: cycleWeapon, isAvailable: () => owns('shotgun') || owns('bow') },
+  { id: 'scope', label: 'Durbin', press: startScoping, release: stopScoping, isAvailable: () => owns('binoculars') },
+  { id: 'heal', label: 'Dori', press: useMedkit, isAvailable: () => profile.medkits > 0 },
+  { id: 'pause', label: 'II', press: pauseRound },
+];
+
+function showTouchControls(visible) {
+  ui.touchControls.hidden = !visible || !IS_TOUCH_DEVICE;
+}
+
+/** Tugmalar holatini yangilaydi. Har kadrda chaqiriladi, lekin faqat telefonda. */
+function updateTouchButtons() {
+  for (const { button, isOn, isAvailable } of touchButtons) {
+    if (isOn) button.classList.toggle('on', Boolean(isOn()));
+    if (isAvailable) button.hidden = !isAvailable();
+  }
+}
+
+const touchButtons = TOUCH_BUTTONS.map((definition) => {
+  const button = document.createElement('button');
+  button.textContent = definition.label;
+  button.dataset.touch = definition.id;
+  button.addEventListener('pointerdown', (event) => {
+    event.stopPropagation();
+    definition.press();
+  });
+  if (definition.release) {
+    for (const type of ['pointerup', 'pointercancel', 'pointerleave']) button.addEventListener(type, definition.release);
+  }
+  ui.touchButtons.append(button);
+  return { ...definition, button };
+});
+
+/** Chap tomonga tekkan barmoq joystick, o'ng tomondagisi qarash uchun ishlatiladi. */
+function setupTouchSurface() {
+  const stick = { id: null, x: 0, y: 0 };
+  const look = { id: null, x: 0, y: 0 };
+  const surface = ui.touchControls;
+
+  surface.addEventListener('pointerdown', (event) => {
+    surface.setPointerCapture(event.pointerId);
+    if (event.clientX < window.innerWidth * 0.42 && stick.id === null) {
+      Object.assign(stick, { id: event.pointerId, x: event.clientX, y: event.clientY });
+      ui.joystick.hidden = false;
+      ui.joystick.style.left = `${stick.x}px`;
+      ui.joystick.style.top = `${stick.y}px`;
+      ui.joystickKnob.style.transform = '';
+    } else if (look.id === null) {
+      Object.assign(look, { id: event.pointerId, x: event.clientX, y: event.clientY });
+    }
+  });
+
+  surface.addEventListener('pointermove', (event) => {
+    if (event.pointerId === stick.id) {
+      const dx = event.clientX - stick.x, dy = event.clientY - stick.y;
+      const scale = Math.min(1, STICK_RADIUS / (Math.hypot(dx, dy) || 1));
+      input.stickX = (dx * scale) / STICK_RADIUS;
+      input.stickY = (dy * scale) / STICK_RADIUS;
+      ui.joystickKnob.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`;
+    } else if (event.pointerId === look.id) {
+      turnView((event.clientX - look.x) * TOUCH_LOOK_SPEED, (event.clientY - look.y) * TOUCH_LOOK_SPEED);
+      look.x = event.clientX;
+      look.y = event.clientY;
+    }
+  });
+
+  const release = (event) => {
+    if (event.pointerId === stick.id) {
+      stick.id = null;
+      input.stickX = input.stickY = 0;
+      ui.joystick.hidden = true;
+    } else if (event.pointerId === look.id) {
+      look.id = null;
+    }
+  };
+  surface.addEventListener('pointerup', release);
+  surface.addEventListener('pointercancel', release);
+}
+
+if (IS_TOUCH_DEVICE) {
+  document.body.classList.add('touch');
+  setupTouchSurface();
+}
 
 window.addEventListener('blur', () => {
   if (pointer.free && game.state === 'playing') pauseRound();
@@ -4202,7 +4405,7 @@ document.querySelectorAll('[data-open-shop]').forEach((button) => button.addEven
 ui.shopCloseBtn.addEventListener('click', () => { ui.shop.hidden = true; });
 
 /* ==========================================================================
-   17. ISHGA TUSHIRISH VA ASOSIY SIKL
+   19. ISHGA TUSHIRISH VA ASOSIY SIKL
    ========================================================================== */
 
 createTerrain();
@@ -4246,6 +4449,7 @@ function frame() {
     updatePlayer(dt);
     updateWeapon(dt);
     updateArrows(dt);
+    if (IS_TOUCH_DEVICE) updateTouchButtons();
     updateRound(realDt);
   } else if (game.state !== 'paused') {
     updateIdleCamera(dt);
