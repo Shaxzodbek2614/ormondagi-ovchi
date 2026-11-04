@@ -11,6 +11,14 @@ const SPECIES = {
     walkSpeed: 2.1, runSpeed: 11.5, turnRate: 3.2, radius: 0.7,
     senseRange: 30, alertTime: [0.5, 1], stride: 1.5, grazeAngle: 2.05, lieHeight: 0.3,
   },
+  // Noyob oq bug'u: faqat missiyada chiqadi, uzoqdan sezadi va juda tez chopadi
+  whiteDeer: {
+    track: { type: 'hoof', size: 1, step: 1.5, width: 0.16 },
+    name: 'Oq bug‘u', points: 200, hp: 2, headDamage: 2, count: 1, missionOnly: true, wadeDepth: 0.8,
+    model: deerModel({ back: '#f1ece2', belly: '#ffffff', dark: '#cfc8ba' }),
+    walkSpeed: 2.1, runSpeed: 13, turnRate: 3.6, radius: 0.7,
+    senseRange: 46, alertTime: [0.3, 0.6], stride: 1.5, grazeAngle: 2.05, lieHeight: 0.3,
+  },
   rabbit: {
     track: { type: 'paw', size: 0.5, step: 1.2, width: 0.08 },
     name: 'Quyon', points: 15, hp: 1, headDamage: 1, count: 30, wadeDepth: 0.1, model: rabbitModel(),

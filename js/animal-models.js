@@ -141,8 +141,8 @@ function earPair(x, y, z, geometry, tiltX, tiltZ) {
   return { geometry, tiltX, tiltZ, pivots: [[-x, y, z], [x, y, z]] };
 }
 
-function deerModel() {
-  const back = '#8c5c36', belly = '#dcc6a2', dark = '#5e3c24', hoof = '#1d1612', bone = '#ddcfae';
+function deerModel({ back = '#8c5c36', belly = '#dcc6a2', dark = '#5e3c24' } = {}) {
+  const hoof = '#1d1612', bone = '#ddcfae';
   const antler = (side) => [
     cylinder(0.017, 0.028, 0.32, bone, [side * 0.1, 0.25, -0.07], [-0.25, 0, -side * 0.4], 5),
     cylinder(0.012, 0.018, 0.3, bone, [side * 0.2, 0.48, -0.05], [0.35, 0, -side * 0.25], 5),

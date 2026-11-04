@@ -76,7 +76,7 @@ const STICK_RADIUS = 56;
 
 /** Keyingi sotib olingan qurolga o'tadi. */
 function cycleWeapon() {
-  const available = Object.keys(WEAPONS).filter((id) => id === 'rifle' || owns(id));
+  const available = availableWeapons();
   trySwitchWeapon(available[(available.indexOf(weapon.current) + 1) % available.length]);
 }
 
@@ -87,7 +87,7 @@ const TOUCH_BUTTONS = [
   { id: 'reload', label: 'O‘qlash', press: startReload },
   { id: 'crouch', label: 'Egilish', press: () => { player.crouching = !player.crouching; }, isOn: () => player.crouching },
   { id: 'sprint', label: 'Yugurish', press: () => { input.keys.ShiftLeft = !input.keys.ShiftLeft; }, isOn: () => input.keys.ShiftLeft },
-  { id: 'swap', label: 'Qurol', press: cycleWeapon, isAvailable: () => owns('shotgun') || owns('bow') },
+  { id: 'swap', label: 'Qurol', press: cycleWeapon, isAvailable: () => availableWeapons().length > 1 },
   { id: 'scope', label: 'Durbin', press: startScoping, release: stopScoping, isAvailable: () => owns('binoculars') },
   { id: 'heal', label: 'Dori', press: useMedkit, isAvailable: () => profile.medkits > 0 },
   { id: 'lamp', label: 'Chiroq', press: () => { player.lampOn = !player.lampOn; }, isOn: () => player.lampOn, isAvailable: () => conditions.night },
@@ -177,7 +177,12 @@ window.addEventListener('blur', () => {
 });
 
 ui.startBtn.addEventListener('click', showSetup);
-ui.againBtn.addEventListener('click', startRound);
+ui.againBtn.addEventListener('click', restartRound);
+ui.missionsBtn.addEventListener('click', showMissions);
+ui.missionsBackBtn.addEventListener('click', () => {
+  ui.missions.hidden = true;
+  ui.menu.hidden = false;
+});
 ui.resumeBtn.addEventListener('click', resumeRound);
 document.querySelectorAll('[data-return-menu]').forEach((button) => button.addEventListener('click', returnToMenu));
 

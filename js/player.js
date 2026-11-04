@@ -164,6 +164,7 @@ function strikeHunter(hunter, amount, attacker) {
 function damagePlayer(amount, attacker) {
   if (game.state !== 'playing') return;
   player.hp = Math.max(0, player.hp - Math.round(amount));
+  game.damageTaken += Math.round(amount);
   player.shake = 1;
   const dx = player.pos.x - attacker.pos.x, dz = player.pos.z - attacker.pos.z;
   const distance = Math.hypot(dx, dz) || 1;

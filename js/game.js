@@ -31,6 +31,8 @@ function createMissions() {
 const game = {
   state: 'menu',
   mode: 'free', // free: erkin ov, mission: yakka missiya, team: birga ov
+  activeMission: null,
+  damageTaken: 0,
   score: 0,
   kills: {},
   missions: [],
@@ -39,22 +41,29 @@ const game = {
   timeLeft: CONFIG.roundSeconds,
 };
 
-function onAnimalKilled(animal, headshot) {
+/** Topshiriq yoki maqsad shu ovga mos keladimi. */
+function goalMatches(goal, animal, moment) {
+  if (goal.kind && goal.kind !== animal.kind) return false;
+  if (goal.headshot && !moment.headshot) return false;
+  if (goal.unaware && !moment.unaware) return false;
+  if (goal.airborne && !moment.airborne) return false;
+  return true;
+}
+
+function onAnimalKilled(animal, moment) {
   const { spec, kind } = animal;
-  const points = headshot ? spec.points * 2 : spec.points;
+  const points = moment.headshot ? spec.points * 2 : spec.points;
   game.score += points;
   game.kills[kind]++;
   updateScoreHud();
-  showPopup(`+${points} ${spec.name}${headshot ? ' · boshga!' : ''}`);
+  showPopup(`+${points} ${spec.name}${moment.headshot ? ' · boshga!' : ''}`);
 
-  for (const mission of game.missions) {
-    if (mission.progress >= mission.goal) continue;
-    if (mission.kind === kind || (mission.headshot && headshot)) {
-      mission.progress++;
-      if (mission.progress === mission.goal) {
-        showPopup(`Topshiriq bajarildi: +${mission.reward} tanga`);
-        sound.chime();
-      }
+  for (const goal of game.missions) {
+    if (goal.progress >= goal.goal || !goalMatches(goal, animal, moment)) continue;
+    goal.progress++;
+    if (goal.progress === goal.goal) {
+      showPopup(goal.reward ? `Topshiriq bajarildi: +${goal.reward} tanga` : 'Maqsad bajarildi');
+      sound.chime();
     }
   }
   updateMissionHud();
@@ -78,7 +87,11 @@ function resetRound() {
     hits: 0,
     timeLeft: conditions.duration,
     kills: Object.fromEntries(Object.keys(SPECIES).map((kind) => [kind, 0])),
-    missions: createMissions(),
+    damageTaken: 0,
+    winDelay: undefined,
+    missions: game.mode === 'mission'
+      ? game.activeMission.goals.map((goal) => ({ ...goal, progress: 0 }))
+      : createMissions(),
   });
 
   player.pos.set(0, terrainHeight(0, 0) + CONFIG.player.eyeHeight, 0);
@@ -102,7 +115,8 @@ function resetRound() {
     animal.state = 'graze';
     // Qishda issiqsevarlar yo'q, oson qiyinlikda yirtqichlar kamroq
     animal.dormant = (conditions.frozen && Boolean(animal.spec.warmOnly))
-      || (Boolean(animal.spec.aggressive) && animal.rosterRank >= conditions.predators);
+      || (Boolean(animal.spec.aggressive) && animal.rosterRank >= conditions.predators)
+      || Boolean(animal.spec.missionOnly);
   });
   // Yirtqichlar boshlanishda uzoqroqda bo'ladi, o'yinchiga tayyorlanishga vaqt qoladi
   animals.forEach((animal) => {
@@ -131,7 +145,7 @@ function applySetup(setup) {
 /** Sichqoncha qulflanganda yoki erkin rejimda o'yinni boshlaydi/davom ettiradi. */
 function enterPlay() {
   game.state = 'playing';
-  ui.menu.hidden = ui.pause.hidden = ui.result.hidden = ui.setup.hidden = true;
+  ui.menu.hidden = ui.pause.hidden = ui.result.hidden = ui.setup.hidden = ui.missions.hidden = true;
   ui.hud.hidden = false;
   viewModel.visible = true;
   document.body.classList.toggle('free-mouse', pointer.free);
@@ -190,12 +204,20 @@ function returnToMenu() {
   document.exitPointerLock?.();
   ui.hud.hidden = ui.pause.hidden = ui.result.hidden = true;
   ui.menu.hidden = false;
+  applySetup(profile.setup);
+}
+
+/** Natija oynasidagi "Qayta o'ynash": xuddi shu rejimni boshidan boshlaydi. */
+function restartRound() {
+  if (game.mode === 'mission') startMission(game.activeMission);
+  else startRound();
 }
 
 function startRound() {
   if (IS_TOUCH_DEVICE) document.documentElement.requestFullscreen?.().catch(() => {});
   sound.init();
   game.mode = 'free';
+  game.activeMission = null;
   applySetup(profile.setup);
   resetRound();
   game.state = 'paused'; // sichqoncha qulflangach "playing" ga o'tadi
@@ -217,7 +239,11 @@ function onPointerLockChange() {
   }
 }
 
-function endRound(reason) {
+/**
+ * Raundni tugatadi va natijani ko'rsatadi.
+ * @param won missiyada g'alaba bo'ldimi (erkin ovda ahamiyati yo'q)
+ */
+function endRound(reason, won = false) {
   game.state = 'over';
   player.noise = 0;
   releaseInput();
@@ -232,39 +258,51 @@ function endRound(reason) {
   const accuracyBonus = game.hits >= 3 ? Math.round(game.score * accuracy * 0.25) : 0;
   game.score += accuracyBonus;
 
-  // Tanga: ochkodan va bajarilgan topshiriqlardan
-  const finished = game.missions.filter((mission) => mission.progress >= mission.goal);
-  const earned = Math.round(game.score / 10) + finished.reduce((sum, mission) => sum + mission.reward, 0);
-  const coins = Math.round(earned * conditions.reward); // qiyin sharoit ko'proq tanga beradi
-  profile.coins += coins;
-
-  const previousBest = profile.best;
-  const isRecord = game.score > previousBest;
-  if (isRecord) profile.best = game.score;
-  saveProfile();
-
-  ui.finalReason.textContent = reason;
-  ui.finalScore.textContent = game.score;
-  ui.finalBest.textContent = isRecord ? 'Yangi rekord!' : `Rekord: ${previousBest}`;
-
   const rows = Object.keys(SPECIES)
     .filter((kind) => game.kills[kind] > 0)
     .map((kind) => [SPECIES[kind].name, game.kills[kind]]);
   rows.push(['Aniqlik', `${Math.round(accuracy * 100)}% (${game.hits} / ${game.shots})`]);
   if (accuracyBonus) rows.push(['Aniqlik bonusi', `+${accuracyBonus}`]);
-  rows.push(['Topshiriqlar', `${finished.length} / ${game.missions.length}`]);
+
+  let coins, summary, nextMission = null;
+  if (game.mode === 'mission') {
+    const outcome = settleMission(won);
+    coins = outcome.coins;
+    nextMission = outcome.next ?? null;
+    summary = won ? starText(outcome.stars) : 'Missiya bajarilmadi';
+    rows.push(...outcome.rows);
+  } else {
+    // Erkin ovda tanga ochkodan va topshiriqlardan keladi, qiyin sharoit ko'proq beradi
+    const finished = game.missions.filter((goal) => goal.progress >= goal.goal);
+    const earned = Math.round(game.score / 10) + finished.reduce((sum, goal) => sum + goal.reward, 0);
+    coins = Math.round(earned * conditions.reward);
+    rows.push(['Topshiriqlar', `${finished.length} / ${game.missions.length}`]);
+
+    const isRecord = game.score > profile.best;
+    summary = isRecord ? 'Yangi rekord!' : `Rekord: ${profile.best}`;
+    if (isRecord) profile.best = game.score;
+  }
+  profile.coins += coins;
+  saveProfile();
   rows.push(['Tanga', `+${coins} (jami ${profile.coins})`]);
+
+  ui.finalReason.textContent = reason;
+  ui.finalScore.textContent = game.score;
+  ui.finalBest.textContent = summary;
   ui.finalTable.replaceChildren(...rows.map(([label, value]) => {
     const row = document.createElement('tr');
     row.insertCell().textContent = label;
     row.insertCell().textContent = value;
     return row;
   }));
+  ui.nextMissionBtn.hidden = !(won && nextMission);
+  ui.nextMissionBtn.onclick = nextMission ? () => startMission(nextMission) : null;
   ui.result.hidden = false;
 }
 
 function updateRound(dt) {
   game.timeLeft = Math.max(0, game.timeLeft - dt);
   updateTimeHud();
-  if (game.timeLeft === 0) endRound('Vaqt tugadi');
+  if (game.mode === 'mission') updateMission(dt);
+  if (game.state === 'playing' && game.timeLeft === 0) endRound('Vaqt tugadi');
 }

@@ -60,6 +60,7 @@
   <div id="hitArc"></div>
   <div id="threat" hidden><i></i></div>
   <div id="feed"></div>
+  <div id="tip"></div>
   <div id="hint" hidden></div>
   <div id="warning" hidden>Cho‘chqa hujum qilmoqda!</div>
 </div>
@@ -98,6 +99,7 @@
     </dl>
     <div class="actions">
       <button class="primary" id="startBtn" disabled>Yuklanmoqda…</button>
+      <button class="primary" id="missionsBtn">Missiyalar</button>
       <button class="secondary" data-open-shop>Do‘kon</button>
       <button class="secondary" data-open-settings>Sozlamalar</button>
     </div>
@@ -127,6 +129,7 @@
     <p id="finalBest"></p>
     <table id="finalTable"></table>
     <div class="actions">
+      <button class="primary" id="nextMissionBtn" hidden>Keyingi missiya</button>
       <button class="primary" id="againBtn">Qayta o‘ynash</button>
       <button class="secondary" data-open-shop>Do‘kon</button>
       <button class="secondary" data-return-menu>Menyuga</button>
@@ -165,6 +168,15 @@
       <button class="secondary" id="setupRandomBtn">Tasodifiy</button>
       <button class="secondary" id="setupBackBtn">Orqaga</button>
     </div>
+  </div>
+</section>
+
+<!-- Missiyalar ro'yxati -->
+<section class="screen" id="missions" hidden>
+  <div class="card wide">
+    <h2>Missiyalar</h2>
+    <ul id="missionCards"></ul>
+    <button class="secondary" id="missionsBackBtn">Orqaga</button>
   </div>
 </section>
 
@@ -212,6 +224,7 @@
     'audio.js',
     'hud.js',
     'game.js',
+    'missions.js',
     'controls.js',
     'main.js',
   ];

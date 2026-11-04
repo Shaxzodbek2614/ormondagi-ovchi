@@ -30,6 +30,12 @@ const ui = {
   warning: byId('warning'),
   vignette: byId('vignette'),
   hitArc: byId('hitArc'),
+  tip: byId('tip'),
+  missions: byId('missions'),
+  missionCards: byId('missionCards'),
+  missionsBtn: byId('missionsBtn'),
+  missionsBackBtn: byId('missionsBackBtn'),
+  nextMissionBtn: byId('nextMissionBtn'),
   setup: byId('setup'),
   setupRows: byId('setupRows'),
   setupNote: byId('setupNote'),
@@ -158,6 +164,15 @@ function updateThreatHud(attacker) {
     ui.threat.hidden = false;
     ui.threat.style.transform = `rotate(${angle}rad)`;
   }
+}
+
+/** Missiya maslahati: bir necha soniya ekranda turadi. */
+function showTip(text) {
+  ui.tip.textContent = text;
+  ui.tip.animate(
+    [{ opacity: 0 }, { opacity: 1, offset: 0.05 }, { opacity: 1, offset: 0.9 }, { opacity: 0 }],
+    { duration: 8000 },
+  );
 }
 
 function showPopup(text) {

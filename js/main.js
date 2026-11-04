@@ -14,7 +14,7 @@ applySetup(profile.setup);
 applyQuality();
 
 // Bosh menyudagi hayvonlar ro'yxati to'g'ridan-to'g'ri sozlamalardan olinadi
-byId('preyList').replaceChildren(...Object.values(SPECIES).map((spec) => {
+byId('preyList').replaceChildren(...Object.values(SPECIES).filter((spec) => !spec.missionOnly).map((spec) => {
   const item = document.createElement('li');
   const name = document.createElement('span');
   name.textContent = spec.name;

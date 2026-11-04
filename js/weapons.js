@@ -162,7 +162,15 @@ function stockWeapons() {
   weapon.slots = Object.fromEntries(Object.entries(WEAPONS).map(([id, gun]) => (
     [id, { ammo: gun.magazine, reserve: Math.round(gun.reserve * pouch) }]
   )));
-  equipWeapon('rifle');
+  const custom = game.mode === 'mission' ? game.activeMission.ammo : null;
+  for (const [id, [ammo, reserve]] of Object.entries(custom ?? {})) weapon.slots[id] = { ammo, reserve };
+  equipWeapon(availableWeapons()[0]);
+}
+
+/** Hozir ishlatish mumkin bo'lgan qurollar: missiya cheklashi yoki sotib olinganlar. */
+function availableWeapons() {
+  const allowed = game.mode === 'mission' ? game.activeMission.weapons : null;
+  return allowed ?? Object.keys(WEAPONS).filter((id) => id === 'rifle' || owns(id));
 }
 
 function equipWeapon(id) {
@@ -178,7 +186,7 @@ function equipWeapon(id) {
 
 /** 1, 2, 3 tugmalari: faqat sotib olingan qurolga o'tadi. */
 function trySwitchWeapon(id) {
-  if (id === weapon.current || (id !== 'rifle' && !owns(id))) return;
+  if (id === weapon.current || !availableWeapons().includes(id)) return;
   sound.dryFire();
   equipWeapon(id);
 }
@@ -238,10 +246,16 @@ function showImpact(point, hitsTree) {
 
 /** Hayvonga tekkan zarba. */
 function registerHit(animal, part, power, point) {
+  // Missiya shartlari uchun hayvon o'q tekkan paytda nima qilayotgani eslab qolinadi
+  const moment = {
+    headshot: part === 'head',
+    unaware: animal.state === 'graze' || animal.state === 'walk',
+    airborne: animal.state === 'fly',
+  };
   burst(point, '#7a1f14', 12, 3.5);
   sound.impact();
   ui.hitMarker.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220 });
-  if (animal.takeHit(part, power)) onAnimalKilled(animal, part === 'head');
+  if (animal.takeHit(part, power)) onAnimalKilled(animal, moment);
 }
 
 /** Bitta o'q yo'lini kuzatadi. Hayvonga tekkan bo'lsa, natija struck ro'yxatiga yoziladi. */

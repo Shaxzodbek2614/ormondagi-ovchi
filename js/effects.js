@@ -191,8 +191,9 @@ class TrackPool {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
-  add(x, z, angle, size, label) {
-    const record = { x, z, angle, size, label, born: elapsed };
+  /** @param options.lasting true bo'lsa iz o'chmaydi: missiyadagi qon izi uchun */
+  add(x, z, angle, size, label, { lasting = false } = {}) {
+    const record = { x, z, angle, size, label, born: lasting ? Infinity : elapsed };
     this.records[this.next] = record;
     this.write(this.next, record, size);
     this.next = (this.next + 1) % this.capacity;

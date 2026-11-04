@@ -126,6 +126,12 @@ body.free-mouse { cursor: none; }
 }
 .popup { font-size: 22px; font-weight: 700; color: var(--amber); text-shadow: 0 1px 4px #000; white-space: nowrap; }
 
+#tip {
+  position: absolute; top: 96px; left: 50%; transform: translateX(-50%); max-width: min(560px, 80%);
+  padding: 7px 14px; border-radius: 5px; font-size: 14px; text-align: center; opacity: 0;
+  background: var(--plate);
+}
+
 #hint, #warning {
   position: absolute; left: 50%; transform: translateX(-50%);
   padding: 6px 14px; border-radius: 4px; font-size: 15px; font-weight: 600; white-space: nowrap;
@@ -283,12 +289,23 @@ kbd {
 
 #loadError { margin-top: 14px; color: #ffb4a6; font-size: 14px; line-height: 1.45; }
 
-#pause, #result, #settings, #shop { background: rgba(9, 13, 8, .68); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+#pause, #result, #settings, #shop, #missions { background: rgba(9, 13, 8, .68); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
 .card {
   margin: auto; width: min(420px, 100%); padding: 30px 32px; text-align: center;
   background: rgba(16, 23, 15, .92); border: 1px solid var(--line); border-radius: 8px;
 }
 .card.wide { width: min(560px, 100%); }
+#missionCards { list-style: none; margin: 14px 0 0; padding: 0; max-height: 62vh; overflow-y: auto; text-align: left; }
+#missionCards li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 9px 2px; border-top: 1px solid var(--line); }
+#missionCards li.locked { opacity: .5; }
+#missionCards b { font-size: 15px; }
+#missionCards .stars { margin-left: 6px; color: var(--amber); letter-spacing: 1px; font-weight: 400; }
+#missionCards small { grid-column: 1; color: var(--ink-soft); font-size: 13px; line-height: 1.35; }
+#missionCards button {
+  grid-column: 2; grid-row: 1 / span 2; align-self: center; min-width: 84px; padding: 8px 10px;
+  font: 700 14px var(--ui-font); color: #1b1407; background: var(--amber); border: 0; border-radius: 5px; cursor: pointer;
+}
+#missionCards button:disabled { color: var(--ink-soft); background: transparent; border: 1px solid var(--line); cursor: default; }
 .card h2 { margin: 0; font: 400 34px var(--title-font); }
 #shopCoins { margin: 6px 0 14px; color: var(--amber); font-weight: 700; }
 #shopList { list-style: none; margin: 0; padding: 0; text-align: left; }
