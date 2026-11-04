@@ -94,6 +94,18 @@
     mask: radial-gradient(circle, transparent 6px, #000 6.5px);
   }
 
+  /* Zarba kelgan tomonni ko'rsatuvchi yoy va hujum qilayotgan hayvon belgisi */
+  #hitArc {
+    position: absolute; top: 50%; left: 50%; width: 280px; height: 280px; margin: -140px;
+    border: 7px solid transparent; border-top-color: var(--danger); border-radius: 50%; opacity: 0;
+  }
+  #threat { position: absolute; top: 50%; left: 50%; width: 0; height: 0; }
+  #threat i {
+    position: absolute; left: -11px; top: -190px;
+    border: 11px solid transparent; border-top: 0; border-bottom: 18px solid var(--danger);
+    filter: drop-shadow(0 0 3px #000);
+  }
+
   #feed {
     position: absolute; top: 37%; left: 50%; transform: translateX(-50%);
     display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -136,6 +148,15 @@
   button.primary:hover:not(:disabled) { background: #f2c26b; transform: translateY(-1px); }
   button.primary:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
   button.primary:disabled { opacity: .6; cursor: wait; }
+  button.secondary {
+    margin-top: 22px; padding: 14px 22px;
+    font: 600 16px var(--ui-font); color: var(--ink);
+    background: transparent; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+  }
+  button.secondary:hover { border-color: var(--ink-soft); }
+  button.secondary:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  #menuPanel .actions { justify-content: flex-start; }
 
   #menu {
     align-items: center;
@@ -161,13 +182,24 @@
 
   #loadError { margin-top: 14px; color: #ffb4a6; font-size: 14px; line-height: 1.45; }
 
-  #pause, #result { background: rgba(9, 13, 8, .68); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+  #pause, #result, #settings { background: rgba(9, 13, 8, .68); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
   .card {
     margin: auto; width: min(420px, 100%); padding: 30px 32px; text-align: center;
     background: rgba(16, 23, 15, .92); border: 1px solid var(--line); border-radius: 8px;
   }
   .card h2 { margin: 0; font: 400 34px var(--title-font); }
   #pauseNote { margin: 10px 0 0; font-size: 14px; color: var(--ink-soft); min-height: 20px; }
+
+  .setting { display: block; margin-top: 18px; text-align: left; font-size: 14px; color: var(--ink-soft); }
+  .setting-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .setting output { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .setting input[type=range] { width: 100%; accent-color: var(--amber); }
+  .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+  .segmented button {
+    padding: 9px 0; font: 600 14px var(--ui-font); color: var(--ink-soft); cursor: pointer;
+    background: transparent; border: 1px solid var(--line); border-radius: 5px;
+  }
+  .segmented button[aria-pressed=true] { color: #1b1407; background: var(--amber); border-color: var(--amber); }
 
   #finalScore { margin: 8px 0 0; font: 400 76px/1 var(--title-font); color: var(--amber); font-variant-numeric: tabular-nums; }
   #finalBest { margin: 6px 0 18px; font-size: 14px; color: var(--ink-soft); }
@@ -217,6 +249,8 @@
 
   <div id="crosshair"><i></i><i></i><i></i><i></i></div>
   <div id="hitMarker"></div>
+  <div id="hitArc"></div>
+  <div id="threat" hidden><i></i></div>
   <div id="feed"></div>
   <div id="hint" hidden></div>
   <div id="warning" hidden>Cho‘chqa hujum qilmoqda!</div>
@@ -240,7 +274,10 @@
       <dt><kbd>Shift</kbd></dt><dd>Yugurish</dd>
       <dt><kbd>M</kbd></dt><dd>Ovozni o‘chirish</dd>
     </dl>
-    <button class="primary" id="startBtn" disabled>Yuklanmoqda…</button>
+    <div class="actions">
+      <button class="primary" id="startBtn" disabled>Yuklanmoqda…</button>
+      <button class="secondary" data-open-settings>Sozlamalar</button>
+    </div>
     <p id="loadError" hidden>O‘yinni yuklab bo‘lmadi. Internet aloqasini va brauzerda WebGL yoqilganini tekshirib, sahifani yangilang.</p>
   </div>
 </section>
@@ -250,7 +287,10 @@
   <div class="card">
     <h2>To‘xtatildi</h2>
     <p id="pauseNote"></p>
-    <button class="primary" id="resumeBtn">Davom etish</button>
+    <div class="actions">
+      <button class="primary" id="resumeBtn">Davom etish</button>
+      <button class="secondary" data-open-settings>Sozlamalar</button>
+    </div>
   </div>
 </section>
 
@@ -263,6 +303,26 @@
     <p id="finalBest"></p>
     <table id="finalTable"></table>
     <button class="primary" id="againBtn">Qayta o‘ynash</button>
+  </div>
+</section>
+
+<!-- Sozlamalar -->
+<section class="screen" id="settings" hidden>
+  <div class="card">
+    <h2>Sozlamalar</h2>
+    <label class="setting">
+      <span class="setting-head">Sichqoncha sezgirligi <output id="sensitivityValue"></output></span>
+      <input type="range" id="sensitivityInput" min="0.3" max="2.5" step="0.05">
+    </label>
+    <label class="setting">
+      <span class="setting-head">Ovoz balandligi <output id="volumeValue"></output></span>
+      <input type="range" id="volumeInput" min="0" max="1" step="0.05">
+    </label>
+    <div class="setting">
+      <span class="setting-head">Grafika sifati</span>
+      <div class="segmented" id="qualityButtons"></div>
+    </div>
+    <button class="primary" id="settingsCloseBtn">Tayyor</button>
   </div>
 </section>
 
@@ -307,6 +367,44 @@ const CONFIG = {
   },
   fov: { normal: 75, aiming: 42 },
 };
+
+// Grafika sifati darajalari: kuchsiz kompyuterlar uchun soya va o't kamaytiriladi
+const QUALITY = {
+  low: { label: 'Past', pixelRatio: 1, shadowSize: 0, detail: 0.35 },
+  medium: { label: 'O‘rta', pixelRatio: 1.25, shadowSize: 1024, detail: 0.7 },
+  high: { label: 'Yuqori', pixelRatio: 1.5, shadowSize: 2048, detail: 1 },
+};
+
+/* --------------------------------------------------------------------------
+   O'yinchi profili: rekord va sozlamalar brauzerda saqlanadi.
+   Maxfiy rejimda localStorage ishlamasligi mumkin, bu holda ma'lumot shunchaki saqlanmaydi.
+   -------------------------------------------------------------------------- */
+
+const PROFILE_KEY = 'ormondagi-ovchi-profil';
+const DEFAULT_PROFILE = {
+  best: 0,
+  settings: { sensitivity: 1, volume: 0.8, quality: 'high' },
+};
+
+function loadProfile() {
+  const fresh = structuredClone(DEFAULT_PROFILE);
+  try {
+    const saved = JSON.parse(localStorage.getItem(PROFILE_KEY)) ?? {};
+    return { ...fresh, ...saved, settings: { ...fresh.settings, ...saved.settings } };
+  } catch {
+    return fresh;
+  }
+}
+
+function saveProfile() {
+  try {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  } catch {
+    // Saqlab bo'lmadi: o'yinga ta'sir qilmaydi
+  }
+}
+
+const profile = loadProfile();
 
 /* ==========================================================================
    2. YORDAMCHI FUNKSIYALAR
@@ -360,7 +458,6 @@ function terrainHeight(x, z) {
 
 const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
@@ -387,7 +484,6 @@ scene.add(new THREE.HemisphereLight('#d7e8ff', '#5a6b35', 1.5));
 
 const sun = new THREE.DirectionalLight('#ffe6bd', 2.9);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 75, bottom: -75, near: 1, far: 320 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.04;
@@ -470,7 +566,21 @@ function resize() {
   weaponCamera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize);
-resize();
+
+/** Tanlangan grafika sifatini sahnaga qo'llaydi. */
+function applyQuality() {
+  const quality = QUALITY[profile.settings.quality];
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatio));
+  resize();
+
+  sun.castShadow = quality.shadowSize > 0;
+  if (sun.castShadow && sun.shadow.mapSize.x !== quality.shadowSize) {
+    sun.shadow.mapSize.set(quality.shadowSize, quality.shadowSize);
+    sun.shadow.map?.dispose();
+    sun.shadow.map = null;
+  }
+  for (const tile of detailTiles) tile.count = Math.ceil(tile.userData.total * quality.detail);
+}
 
 /* ==========================================================================
    4. GEOMETRIK SHAKLLAR YIG'UVCHISI
@@ -753,7 +863,10 @@ function addInstances(geometry, items, { castShadow = true, detail = false } = {
     mesh.castShadow = castShadow;
     mesh.receiveShadow = true;
     scene.add(mesh);
-    if (detail) detailTiles.push(mesh);
+    if (detail) {
+      mesh.userData.total = tileItems.length;
+      detailTiles.push(mesh);
+    }
   }
 }
 
@@ -1241,12 +1354,18 @@ function createAnimals() {
 }
 
 function updateAnimals(dt) {
-  let boarThreat = false;
+  let attacker = null;
+  let attackerDistance = 35;
   for (const animal of animals) {
     animal.update(dt);
-    if (animal.state === 'charge' && animal.distanceToPlayer() < 35) boarThreat = true;
+    if (animal.state !== 'charge') continue;
+    const distance = animal.distanceToPlayer();
+    if (distance < attackerDistance) {
+      attacker = animal;
+      attackerDistance = distance;
+    }
   }
-  ui.warning.hidden = !boarThreat || game.state !== 'playing';
+  updateThreatHud(game.state === 'playing' ? attacker : null);
 }
 
 /* ==========================================================================
@@ -1359,6 +1478,11 @@ function damagePlayer(amount, attacker) {
   player.velocity.z += (dz / distance) * 13;
 
   sound.hurt();
+  const angle = angleFromView(attacker.pos.x, attacker.pos.z);
+  ui.hitArc.animate(
+    [{ opacity: 1, transform: `rotate(${angle}rad)` }, { opacity: 0, transform: `rotate(${angle}rad)` }],
+    { duration: 900, easing: 'ease-out' },
+  );
   ui.vignette.animate([{ opacity: 1 }, { opacity: lowHealthGlow() }], { duration: 600, easing: 'ease-out' });
   updateHealthHud();
   if (player.hp === 0) endRound('hp');
@@ -1676,7 +1800,7 @@ const sound = {
     const context = this.context = new AudioContextClass();
 
     this.master = context.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.8;
+    this.applyVolume();
     this.master.connect(context.destination);
 
     // Oq shovqin: o'q, qadam va shamol ovozlari uchun xomashyo
@@ -1700,7 +1824,11 @@ const sound = {
 
   toggleMute() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.8;
+    this.applyVolume();
+  },
+
+  applyVolume() {
+    if (this.master) this.master.gain.value = this.muted ? 0 : profile.settings.volume;
   },
 
   /** Filtrlangan shovqin zarbasi. */
@@ -1852,6 +1980,15 @@ const ui = {
   hint: byId('hint'),
   warning: byId('warning'),
   vignette: byId('vignette'),
+  hitArc: byId('hitArc'),
+  threat: byId('threat'),
+  settings: byId('settings'),
+  sensitivityInput: byId('sensitivityInput'),
+  sensitivityValue: byId('sensitivityValue'),
+  volumeInput: byId('volumeInput'),
+  volumeValue: byId('volumeValue'),
+  qualityButtons: byId('qualityButtons'),
+  settingsCloseBtn: byId('settingsCloseBtn'),
   startBtn: byId('startBtn'),
   resumeBtn: byId('resumeBtn'),
   againBtn: byId('againBtn'),
@@ -1901,6 +2038,28 @@ function setHint(text) {
   if (text && ui.hint.textContent !== text) ui.hint.textContent = text;
 }
 
+/** Nuqta o'yinchining qarash yo'nalishidan qaysi burchakda: 0 = oldinda, + = o'ngda. */
+function angleFromView(x, z) {
+  const dx = x - player.pos.x, dz = z - player.pos.z;
+  const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
+  return Math.atan2(cos * dx - sin * dz, -sin * dx - cos * dz);
+}
+
+/** Hujum qilayotgan eng yaqin hayvonni ogohlantirish yozuvi va yo'nalish belgisi bilan ko'rsatadi. */
+function updateThreatHud(attacker) {
+  ui.warning.hidden = !attacker;
+  ui.threat.hidden = true;
+  if (!attacker) return;
+
+  const text = `${attacker.spec.name} hujum qilmoqda!`;
+  if (ui.warning.textContent !== text) ui.warning.textContent = text;
+  const angle = angleFromView(attacker.pos.x, attacker.pos.z);
+  if (Math.abs(angle) > 0.5) {
+    ui.threat.hidden = false;
+    ui.threat.style.transform = `rotate(${angle}rad)`;
+  }
+}
+
 function showPopup(text) {
   const popup = document.createElement('div');
   popup.className = 'popup';
@@ -1922,8 +2081,6 @@ function showPopup(text) {
    Holatlar: menu -> playing <-> paused -> over -> (qayta) playing
    ========================================================================== */
 
-const BEST_SCORE_KEY = 'ormondagi-ovchi-rekord';
-
 // Odatda sichqoncha qulflanadi (Pointer Lock). Agar brauzer bunga ruxsat bermasa,
 // "erkin" rejim yoqiladi: kursor ekran chetiga yetganda kamera o'zi buriladi.
 const pointer = { lockWorked: false, free: false };
@@ -1936,23 +2093,6 @@ const game = {
   hits: 0,
   timeLeft: CONFIG.roundSeconds,
 };
-
-/** Maxfiy rejimda localStorage ishlamasligi mumkin, bu holda rekord shunchaki saqlanmaydi. */
-function loadBestScore() {
-  try {
-    return Number(localStorage.getItem(BEST_SCORE_KEY)) || 0;
-  } catch {
-    return 0;
-  }
-}
-
-function saveBestScore(score) {
-  try {
-    localStorage.setItem(BEST_SCORE_KEY, String(score));
-  } catch {
-    // Saqlab bo'lmadi: o'yinga ta'sir qilmaydi
-  }
-}
 
 function onAnimalKilled(animal, headshot) {
   const { spec, kind } = animal;
@@ -1997,6 +2137,7 @@ function enterPlay() {
   ui.hud.hidden = false;
   rifle.visible = true;
   document.body.classList.toggle('free-mouse', pointer.free);
+  sound.context?.resume();
 }
 
 function pauseRound() {
@@ -2005,6 +2146,7 @@ function pauseRound() {
   input.aiming = input.fire = false;
   input.edgeTurn = 0;
   document.body.classList.remove('free-mouse');
+  sound.context?.suspend();
   ui.pauseNote.textContent = '';
   ui.pause.hidden = false;
 }
@@ -2064,9 +2206,10 @@ function endRound(reason) {
   document.exitPointerLock?.();
   sound.horn();
 
-  const previousBest = loadBestScore();
+  const previousBest = profile.best;
   const isRecord = game.score > previousBest;
-  if (isRecord) saveBestScore(game.score);
+  if (isRecord) profile.best = game.score;
+  saveProfile();
 
   ui.finalReason.textContent = reason === 'hp' ? 'Cho‘chqa sizni yengdi' : 'Vaqt tugadi';
   ui.finalScore.textContent = game.score;
@@ -2100,7 +2243,7 @@ document.addEventListener('pointerlockerror', onLockFailed);
 document.addEventListener('mousemove', (event) => {
   if (game.state !== 'playing') return;
   // Mo'ljalga olganda kamera sekinroq aylanadi, shunda uzoqdagi nishonni ushlash oson
-  const sensitivity = CONFIG.player.lookSensitivity * lerp(1, 0.55, player.aim);
+  const sensitivity = CONFIG.player.lookSensitivity * profile.settings.sensitivity * lerp(1, 0.55, player.aim);
   player.yaw -= event.movementX * sensitivity;
   player.pitch = clamp(player.pitch - event.movementY * sensitivity, -1.45, 1.45);
   input.lookX += event.movementX;
@@ -2141,6 +2284,47 @@ ui.startBtn.addEventListener('click', startRound);
 ui.againBtn.addEventListener('click', startRound);
 ui.resumeBtn.addEventListener('click', resumeRound);
 
+/* Sozlamalar oynasi */
+
+function showSettings() {
+  const { sensitivity, volume, quality } = profile.settings;
+  ui.sensitivityInput.value = sensitivity;
+  ui.sensitivityValue.textContent = `${sensitivity.toFixed(2)}×`;
+  ui.volumeInput.value = volume;
+  ui.volumeValue.textContent = `${Math.round(volume * 100)}%`;
+  for (const button of ui.qualityButtons.children) {
+    button.setAttribute('aria-pressed', String(button.dataset.quality === quality));
+  }
+}
+
+function changeSetting(name, value) {
+  profile.settings[name] = value;
+  saveProfile();
+  showSettings();
+}
+
+ui.qualityButtons.replaceChildren(...Object.entries(QUALITY).map(([key, { label }]) => {
+  const button = document.createElement('button');
+  button.textContent = label;
+  button.dataset.quality = key;
+  button.addEventListener('click', () => {
+    changeSetting('quality', key);
+    applyQuality();
+  });
+  return button;
+}));
+
+ui.sensitivityInput.addEventListener('input', () => changeSetting('sensitivity', Number(ui.sensitivityInput.value)));
+ui.volumeInput.addEventListener('input', () => {
+  changeSetting('volume', Number(ui.volumeInput.value));
+  sound.applyVolume();
+});
+document.querySelectorAll('[data-open-settings]').forEach((button) => button.addEventListener('click', () => {
+  showSettings();
+  ui.settings.hidden = false;
+}));
+ui.settingsCloseBtn.addEventListener('click', () => { ui.settings.hidden = true; });
+
 /* ==========================================================================
    17. ISHGA TUSHIRISH VA ASOSIY SIKL
    ========================================================================== */
@@ -2148,6 +2332,7 @@ ui.resumeBtn.addEventListener('click', resumeRound);
 createTerrain();
 createForest();
 createAnimals();
+applyQuality();
 
 // O'q belgilarini HUD'da bir marta yasab qo'yamiz
 ui.ammoPips.replaceChildren(...Array.from({ length: CONFIG.weapon.magazine }, () => document.createElement('i')));
@@ -2182,13 +2367,15 @@ function updateIdleCamera(dt) {
 
 function frame() {
   requestAnimationFrame(frame);
-  const dt = Math.min(clock.getDelta(), 0.05);
+  // Fizika uchun qadam cheklanadi, lekin raund vaqti haqiqiy soat bo'yicha hisoblanadi
+  const realDt = Math.min(clock.getDelta(), 1);
+  const dt = Math.min(realDt, 0.05);
   elapsed += dt;
 
   if (game.state === 'playing') {
     updatePlayer(dt);
     updateWeapon(dt);
-    updateRound(dt);
+    updateRound(realDt);
   } else if (game.state !== 'paused') {
     updateIdleCamera(dt);
   }
