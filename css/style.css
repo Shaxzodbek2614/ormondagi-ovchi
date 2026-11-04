@@ -1,0 +1,325 @@
+:root {
+  color-scheme: dark;
+  --ink: #f3ead6;
+  --ink-soft: #c9c2ad;
+  --moss: #10170f;
+  --plate: rgba(13, 19, 12, .62);
+  --line: rgba(243, 234, 214, .22);
+  --amber: #e5ad4c;
+  --danger: #e0533f;
+  --ui-font: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --title-font: Georgia, "Times New Roman", serif;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--moss);
+  color: var(--ink);
+  font-family: var(--ui-font);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+body.free-mouse { cursor: none; }
+
+/* ---------- O'yin vaqtidagi ko'rsatkichlar (HUD) ---------- */
+#hud {
+  position: fixed; pointer-events: none;
+  inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+.plate {
+  position: absolute;
+  padding: 10px 16px;
+  background: var(--plate);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.value { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+#scorePlate { top: 18px; left: 18px; min-width: 150px; }
+#killLine { margin-top: 4px; font-size: 12px; color: var(--ink-soft); }
+
+#timePlate { top: 18px; left: 50%; transform: translateX(-50%); text-align: center; min-width: 110px; }
+#timePlate.urgent .value { color: var(--danger); }
+#conditionLine { margin-top: 2px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+
+#missionList { list-style: none; margin: 8px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 1.6; }
+#missionList li { display: flex; justify-content: space-between; gap: 14px; color: var(--ink-soft); }
+#missionList li.done { color: var(--amber); text-decoration: line-through; }
+#medkitLine { margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
+#medkitLine:empty { display: none; }
+
+/* Ovchi uchun ma'lumot: shamol yo'nalishi va qancha shovqin qilinayotgani */
+#fieldPlate { top: 18px; right: 18px; width: 170px; }
+.field-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 24px; }
+.field-row .bar { flex: 1; margin-top: 0; }
+#windArrow {
+  width: 0; height: 0; border: 8px solid transparent; border-top: 0;
+  border-bottom: 18px solid var(--ink); transform-origin: 50% 60%;
+}
+#noiseBar > i { background: var(--amber); transition: transform .15s; }
+#stanceLine { min-height: 16px; margin-top: 4px; font-size: 12px; color: var(--ink-soft); }
+
+#hpPlate { bottom: 18px; left: 18px; width: 260px; }
+#hpRow { display: flex; justify-content: space-between; align-items: baseline; }
+#hpValue { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bar { height: 8px; margin-top: 6px; border-radius: 4px; background: rgba(255, 255, 255, .14); overflow: hidden; }
+.bar > i { display: block; height: 100%; transform-origin: left; background: #7fb24f; transition: transform .2s; }
+#hpBar.low > i { background: var(--danger); }
+
+#ammoPlate { bottom: 18px; right: 18px; min-width: 190px; text-align: right; }
+#ammoPips { display: flex; justify-content: flex-end; gap: 5px; margin-top: 8px; }
+#ammoPips i { width: 9px; height: 24px; border-radius: 5px 5px 1px 1px; background: var(--amber); }
+#ammoPips i.spent { background: rgba(255, 255, 255, .16); }
+#reloadBar { visibility: hidden; }
+#reloadBar.active { visibility: visible; }
+#reloadBar > i { background: var(--amber); transition: none; }
+
+/* Nishon: to'rtta chiziq, oraliq --gap orqali o'zgaradi */
+#crosshair { position: absolute; top: 50%; left: 50%; --gap: 9px; }
+#crosshair i { position: absolute; background: var(--ink); box-shadow: 0 0 2px #000; }
+#crosshair i:nth-child(1) { width: 2px; height: 9px; left: -1px; bottom: var(--gap); }
+#crosshair i:nth-child(2) { width: 2px; height: 9px; left: -1px; top: var(--gap); }
+#crosshair i:nth-child(3) { width: 9px; height: 2px; top: -1px; right: var(--gap); }
+#crosshair i:nth-child(4) { width: 9px; height: 2px; top: -1px; left: var(--gap); }
+#hitMarker {
+  position: absolute; top: 50%; left: 50%; width: 26px; height: 26px; margin: -13px;
+  opacity: 0;
+  background:
+    linear-gradient(45deg, transparent 47%, var(--ink) 47% 53%, transparent 53%),
+    linear-gradient(-45deg, transparent 47%, var(--ink) 47% 53%, transparent 53%);
+  -webkit-mask: radial-gradient(circle, transparent 6px, #000 6.5px);
+  mask: radial-gradient(circle, transparent 6px, #000 6.5px);
+}
+
+/* Zarba kelgan tomonni ko'rsatuvchi yoy va hujum qilayotgan hayvon belgisi */
+#hitArc {
+  position: absolute; top: 50%; left: 50%; width: 280px; height: 280px; margin: -140px;
+  border: 7px solid transparent; border-top-color: var(--danger); border-radius: 50%; opacity: 0;
+}
+#threat { position: absolute; top: 50%; left: 50%; width: 0; height: 0; }
+#threat i {
+  position: absolute; left: -11px; top: -190px;
+  border: 11px solid transparent; border-top: 0; border-bottom: 18px solid var(--danger);
+  filter: drop-shadow(0 0 3px #000);
+}
+
+#feed {
+  position: absolute; top: 37%; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.popup { font-size: 22px; font-weight: 700; color: var(--amber); text-shadow: 0 1px 4px #000; white-space: nowrap; }
+
+#hint, #warning {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  padding: 6px 14px; border-radius: 4px; font-size: 15px; font-weight: 600; white-space: nowrap;
+}
+#hint { bottom: 96px; background: var(--plate); }
+#warning { top: 96px; background: var(--danger); color: #fff; animation: pulse .6s infinite alternate; }
+@keyframes pulse { to { opacity: .55; } }
+
+/* Tor oynalarda ko'rsatkichlar bir-birining ustiga chiqmasin */
+@media (max-width: 640px) {
+  #timePlate { left: auto; right: 18px; transform: none; min-width: 0; }
+  #fieldPlate { top: 96px; width: 130px; }
+  #killLine { display: none; }
+  #scorePlate { min-width: 0; }
+  #hpPlate { width: 42%; }
+  #ammoPlate { min-width: 0; width: 42%; }
+  #ammoPips i { width: 6px; height: 18px; }
+  #hint, #warning { white-space: normal; width: max-content; max-width: 90%; text-align: center; }
+}
+
+/* ---------- Telefon ---------- */
+.touch-note, #rotateHint { display: none; }
+body.touch .touch-note { display: block; margin: 0; font-size: 14px; color: var(--ink-soft); }
+body.touch .controls { display: none; }
+
+#touchControls { position: fixed; inset: 0; touch-action: none; -webkit-touch-callout: none; }
+#joystick {
+  position: absolute; width: 120px; height: 120px; margin: -60px;
+  border: 2px solid var(--line); border-radius: 50%; background: rgba(13, 19, 12, .3); pointer-events: none;
+}
+#joystick i {
+  position: absolute; top: 50%; left: 50%; width: 52px; height: 52px; margin: -26px;
+  border-radius: 50%; background: rgba(243, 234, 214, .45);
+}
+#touchButtons {
+  position: absolute; pointer-events: none;
+  inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+#touchButtons button {
+  pointer-events: auto;
+  position: absolute; display: grid; place-items: center; width: 60px; height: 60px; padding: 0;
+  font: 700 11px var(--ui-font); color: var(--ink); touch-action: none;
+  background: rgba(13, 19, 12, .5); border: 1px solid var(--line); border-radius: 50%;
+}
+#touchButtons button.on { color: #1b1407; background: var(--amber); }
+#touchButtons [data-touch=fire] { right: 24px; bottom: 26px; width: 86px; height: 86px; font-size: 14px; background: rgba(224, 83, 63, .62); }
+#touchButtons [data-touch=aim] { right: 122px; bottom: 22px; }
+#touchButtons [data-touch=reload] { right: 118px; bottom: 92px; }
+#touchButtons [data-touch=crouch] { right: 58px; bottom: 126px; }
+#touchButtons [data-touch=sprint] { right: 188px; bottom: 22px; }
+#touchButtons [data-touch=swap] { right: 184px; bottom: 92px; }
+#touchButtons [data-touch=scope] { right: 124px; bottom: 162px; }
+#touchButtons [data-touch=heal] { right: 190px; bottom: 162px; }
+#touchButtons [data-touch=lamp] { right: 58px; bottom: 196px; }
+#touchButtons [data-touch=pause] { top: 66px; left: 50%; width: 44px; height: 44px; margin-left: -22px; }
+
+/* Telefonda pastki burchaklar barmoqlar uchun bo'sh qoladi, ko'rsatkichlar tepaga chiqadi */
+body.touch .plate { padding: 5px 9px; }
+body.touch .value { font-size: 20px; }
+body.touch .label { font-size: 9.5px; }
+body.touch #scorePlate { top: 8px; left: 8px; min-width: 0; }
+body.touch #killLine, body.touch #missionList, body.touch #stanceLine, body.touch #medkitLine { display: none; }
+body.touch #timePlate { top: 8px; left: 50%; right: auto; transform: translateX(-50%); min-width: 0; }
+body.touch #fieldPlate { top: 8px; right: 8px; width: 104px; }
+body.touch #hpPlate { top: 8px; bottom: auto; left: 92px; width: 118px; }
+body.touch #hpValue { font-size: 14px; }
+body.touch #ammoPlate { top: 8px; bottom: auto; right: 120px; width: auto; min-width: 74px; }
+body.touch #ammoPips { display: none; }
+body.touch #hint { bottom: auto; top: 68px; font-size: 13px; }
+body.touch #warning { top: 118px; font-size: 13px; }
+
+/* Past ekranlarda menyu tugmalari ko'rinib tursin */
+@media (max-height: 520px) {
+  .screen { padding: 12px; }
+  h1 { font-size: 34px; }
+  h1 br, .lead, .touch-note { display: none !important; }
+  #preyList { margin: 8px 0 0; }
+  #preyList li { padding: 3px 0; font-size: 13px; }
+  .eyebrow { margin-bottom: 2px; }
+  button.primary, button.secondary { margin-top: 10px; padding: 10px 18px; }
+  .card { padding: 14px 20px; }
+  #finalScore { font-size: 44px; margin-top: 2px; }
+  #finalBest { margin-bottom: 6px; }
+  #finalTable td { padding: 3px 0; }
+}
+
+@media (pointer: coarse) and (orientation: portrait) {
+  body.playing #rotateHint {
+    position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
+    font: 400 26px var(--title-font); background: var(--moss);
+  }
+}
+
+/* Durbindan qaraganda ikki doira ko'rinadi */
+#binoculars {
+  position: fixed; inset: 0; pointer-events: none; background: #050505;
+  -webkit-mask-image:
+    radial-gradient(circle at 39% 50%, transparent 37vh, #000 38vh),
+    radial-gradient(circle at 61% 50%, transparent 37vh, #000 38vh);
+  mask-image:
+    radial-gradient(circle at 39% 50%, transparent 37vh, #000 38vh),
+    radial-gradient(circle at 61% 50%, transparent 37vh, #000 38vh);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+/* Zarar olganda ekran chetlari qizaradi */
+#vignette {
+  position: fixed; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(170, 15, 5, .85) 100%);
+}
+
+/* ---------- To'liq ekranli oynalar ---------- */
+.screen { position: fixed; inset: 0; display: flex; padding: 24px; overflow-y: auto; }
+button.primary {
+  margin-top: 22px; padding: 14px 34px;
+  font: 700 17px var(--ui-font); color: #1b1407;
+  background: var(--amber); border: 0; border-radius: 6px; cursor: pointer;
+  transition: transform .12s, background .12s;
+}
+button.primary:hover:not(:disabled) { background: #f2c26b; transform: translateY(-1px); }
+button.primary:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+button.primary:disabled { opacity: .6; cursor: wait; }
+button.secondary {
+  margin-top: 22px; padding: 14px 22px;
+  font: 600 16px var(--ui-font); color: var(--ink);
+  background: transparent; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+}
+button.secondary:hover { border-color: var(--ink-soft); }
+button.secondary:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+#menuPanel .actions { justify-content: flex-start; }
+
+#menu {
+  align-items: center;
+  background: linear-gradient(90deg, rgba(10, 15, 9, .9) 0%, rgba(10, 15, 9, .66) 38%, transparent 72%);
+}
+#menuPanel { width: min(500px, 100%); margin: auto 0 auto 5vw; }
+.eyebrow { margin: 0 0 8px; color: var(--amber); font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+h1 { margin: 0; font: 400 clamp(46px, 7vw, 74px)/1 var(--title-font); }
+.lead { margin: 16px 0 18px; font-size: 16px; line-height: 1.5; color: var(--ink-soft); }
+
+#preyList { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; list-style: none; margin: 0 0 18px; padding: 0; }
+#preyList li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+#preyList b { color: var(--amber); font-variant-numeric: tabular-nums; }
+#preyList .danger { color: #ff9b86; }
+
+.controls { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 6px 10px; margin: 0; font-size: 13px; color: var(--ink-soft); }
+.controls dt { text-align: right; }
+.controls dd { margin: 0; align-self: center; }
+kbd {
+  display: inline-block; padding: 1px 7px; font: 600 12px var(--ui-font); color: var(--ink);
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: rgba(255, 255, 255, .07);
+}
+
+#loadError { margin-top: 14px; color: #ffb4a6; font-size: 14px; line-height: 1.45; }
+
+#pause, #result, #settings, #shop { background: rgba(9, 13, 8, .68); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+.card {
+  margin: auto; width: min(420px, 100%); padding: 30px 32px; text-align: center;
+  background: rgba(16, 23, 15, .92); border: 1px solid var(--line); border-radius: 8px;
+}
+.card.wide { width: min(560px, 100%); }
+.card h2 { margin: 0; font: 400 34px var(--title-font); }
+#shopCoins { margin: 6px 0 14px; color: var(--amber); font-weight: 700; }
+#shopList { list-style: none; margin: 0; padding: 0; text-align: left; }
+#shopList li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 10px 0; border-top: 1px solid var(--line); }
+#shopList b { font-size: 15px; }
+#shopList small { grid-column: 1; color: var(--ink-soft); font-size: 13px; line-height: 1.35; }
+#shopList button {
+  grid-column: 2; grid-row: 1 / span 2; align-self: center; min-width: 96px; padding: 8px 12px;
+  font: 700 14px var(--ui-font); color: #1b1407; background: var(--amber); border: 0; border-radius: 5px; cursor: pointer;
+}
+#shopList button:disabled { color: var(--ink-soft); background: transparent; border: 1px solid var(--line); cursor: default; }
+#pauseNote { margin: 10px 0 0; font-size: 14px; color: var(--ink-soft); min-height: 20px; }
+
+.setting { display: block; margin-top: 18px; text-align: left; font-size: 14px; color: var(--ink-soft); }
+.setting-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.setting output { color: var(--ink); font-variant-numeric: tabular-nums; }
+.setting input[type=range] { width: 100%; accent-color: var(--amber); }
+.segmented { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 6px; }
+#setup { background: rgba(9, 13, 8, .34); }
+#setup .card { background: rgba(16, 23, 15, .86); }
+#setup .setting { margin-top: 12px; }
+#setup .setting-head { margin-bottom: 5px; }
+#setupNote { min-height: 40px; margin: 12px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); text-align: left; }
+.segmented button {
+  padding: 9px 0; font: 600 14px var(--ui-font); color: var(--ink-soft); cursor: pointer;
+  background: transparent; border: 1px solid var(--line); border-radius: 5px;
+}
+.segmented button[aria-pressed=true] { color: #1b1407; background: var(--amber); border-color: var(--amber); }
+
+#finalScore { margin: 8px 0 0; font: 400 76px/1 var(--title-font); color: var(--amber); font-variant-numeric: tabular-nums; }
+#finalBest { margin: 6px 0 18px; font-size: 14px; color: var(--ink-soft); }
+#finalTable { width: 100%; border-collapse: collapse; font-size: 15px; }
+#finalTable td { padding: 7px 0; border-top: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+#finalTable td:first-child { text-align: left; }
