@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>O‘rmondagi ovchi</title>
 
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=3">
 
 <!-- Three.js CDN'dan olinadi. O'yindagi barcha model, tekstura va ovozlar kod bilan yasaladi. -->
 <script type="importmap">
@@ -257,6 +257,8 @@
   window.THREE = THREE;
   window.mergeGeometries = mergeGeometries;
 
+  const BUILD = 3; // yangi versiya chiqqanda oshiriladi: brauzer eski fayllarni ishlatmasligi uchun
+
   const files = [
     'config.js',
     'world-map.js',
@@ -284,7 +286,7 @@
   ];
   for (const file of files) {
     const script = document.createElement('script');
-    script.src = `js/${file}`;
+    script.src = `js/${file}?v=${BUILD}`;
     script.async = false; // fayllar aynan shu tartibda ishga tushadi
     document.body.append(script);
   }

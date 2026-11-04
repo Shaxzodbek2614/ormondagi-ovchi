@@ -114,6 +114,7 @@ async function openRelayInbox() {
       acceptClient(link);
     }
     if (message.t === 'bye') {
+      if (!link.brokers.includes(broker)) return; // mijoz ishlatmayotgan serverdan kelgan
       link.close();
       links.delete(id);
     } else {
@@ -150,8 +151,9 @@ async function connectThroughRelay() {
         const message = parseJson(payload);
         if (!message) return;
         if (link.brokers.length > 1) {
-          // Xost shu serverda ekan: qolganlarini yopamiz
-          link.brokers.filter((other) => other !== broker).forEach((other) => other.end(true));
+          // Xost shu serverda ekan: qolganlarini yopamiz. Yopish yumshoq bo'lishi shart,
+          // aks holda server "kutilmaganda uzildi" deb xostga xayrlashuv xabarini yuboradi.
+          link.brokers.filter((other) => other !== broker).forEach((other) => other.end());
           link.brokers = [broker];
         }
         link.emit('data', message);
