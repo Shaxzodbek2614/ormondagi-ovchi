@@ -167,10 +167,10 @@
   h1 { margin: 0; font: 400 clamp(46px, 7vw, 74px)/1 var(--title-font); }
   .lead { margin: 16px 0 18px; font-size: 16px; line-height: 1.5; color: var(--ink-soft); }
 
-  #preyList { list-style: none; margin: 0 0 18px; padding: 0; border-top: 1px solid var(--line); }
-  #preyList li { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  #preyList { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; list-style: none; margin: 0 0 18px; padding: 0; }
+  #preyList li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
   #preyList b { color: var(--amber); font-variant-numeric: tabular-nums; }
-  #preyList small { color: var(--danger); font-size: 12px; margin-left: 8px; }
+  #preyList .danger { color: #ff9b86; }
 
   .controls { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; margin: 0; font-size: 14px; color: var(--ink-soft); }
   .controls dt { text-align: right; }
@@ -263,7 +263,7 @@
   <div id="menuPanel">
     <p class="eyebrow">Uch daqiqa, bitta miltiq</p>
     <h1>O‘rmondagi<br>ovchi</h1>
-    <p class="lead">Yaqinlashsangiz hayvonlar qochadi, o‘q ovozi esa butun atrofni uyg‘otadi. Sekin yuring, boshga mo‘ljal oling va yovvoyi cho‘chqadan ehtiyot bo‘ling.</p>
+    <p class="lead">Yaqinlashsangiz hayvonlar qochadi, o‘q ovozi esa butun atrofni uyg‘otadi. Sekin yuring, boshga mo‘ljal oling. Qizil yozilganlar sizga hujum qiladi.</p>
     <ul id="preyList"></ul>
     <dl class="controls">
       <dt><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dt><dd>Yurish</dd>
@@ -1531,13 +1531,147 @@ function boarModel() {
   };
 }
 
+/** Bo'ri va tulki bir xil tana tuzilishiga ega, faqat ranglari va nisbatlari farq qiladi. */
+function canineModel({ back, belly, sock, tailTip, muzzle, earScale = 1, tailScale = 1 }) {
+  const ear = painted(new THREE.ConeGeometry(0.06 * earScale, 0.16 * earScale, 8), back, [0, 0.07 * earScale, 0], [0, 0, 0], [1, 1, 0.45]);
+  const t = tailScale;
+  return {
+    body: loft([
+      [0.86, -0.66, 0.04, 0.05], [0.86, -0.6, 0.14, 0.16], [0.86, -0.3, 0.175, 0.2], [0.84, 0, 0.175, 0.215],
+      [0.87, 0.28, 0.185, 0.25], [0.92, 0.46, 0.16, 0.22], [0.96, 0.58, 0.07, 0.09],
+    ], { top: back, bottom: belly, mottle: 0.08 }),
+    neck: {
+      pivot: [0, 0.98, 0.46],
+      geometry: loft([[-0.05, -0.05, 0.14, 0.17], [0.1, 0.1, 0.115, 0.13], [0.2, 0.22, 0.1, 0.105]], { top: back, bottom: belly, sides: 10, steps: 3, mottle: 0.08 }),
+    },
+    head: {
+      pivot: [0, 0.2, 0.24],
+      geometry: merge(
+        loft([
+          [0.04, -0.1, 0.05, 0.05], [0.05, -0.03, 0.115, 0.105], [0.02, 0.08, 0.1, 0.09],
+          [-0.02, 0.2, 0.055, 0.05], [-0.035, 0.3, 0.04, 0.035], [-0.04, 0.34, 0.02, 0.02],
+        ], { top: back, bottom: muzzle, tip: ['#141010', 0.9], sides: 10 }),
+        eyes(0.075, 0.06, 0.07, 0.018, '#2a1a08'),
+      ),
+    },
+    ears: earPair(0.07, 0.13, -0.04, ear, -0.1, 0.22),
+    tail: {
+      pivot: [0, 0.92, -0.62],
+      rest: 0.15,
+      geometry: limb([
+        [0, 0, 0.05 * t, 0.055 * t], [-0.16 * t, -0.12 * t, 0.075 * t, 0.08 * t],
+        [-0.34 * t, -0.2 * t, 0.07 * t, 0.075 * t], [-0.48 * t, -0.24 * t, 0.02, 0.02],
+      ], { top: back, bottom: belly, tip: [tailTip, 0.62], steps: 3 }),
+    },
+    legs: [
+      ...legPair(0.11, 0.72, 0.38,
+        limb([[0.04, 0, 0.06, 0.075], [-0.15, 0, 0.05, 0.055], [-0.3, 0.01, 0.035, 0.04]], { top: back, bottom: belly }),
+        [0, -0.3, 0.01],
+        limb([[0, 0, 0.032, 0.036], [-0.2, 0, 0.026, 0.03], [-0.38, 0.02, 0.032, 0.042], [-0.41, 0.04, 0.02, 0.03]], { top: sock })),
+      ...legPair(0.115, 0.76, -0.44,
+        limb([[0.06, 0, 0.08, 0.12], [-0.14, -0.03, 0.07, 0.095], [-0.3, -0.08, 0.04, 0.045]], { top: back, bottom: belly }),
+        [0, -0.3, -0.08],
+        limb([[0, 0, 0.035, 0.04], [-0.18, 0.03, 0.026, 0.03], [-0.43, 0.05, 0.03, 0.04], [-0.46, 0.07, 0.02, 0.03]], { top: sock })),
+    ],
+    hitBody: { size: [0.54, 0.9, 1.45], center: [0, 0.74, 0] },
+    hitNeck: { size: [0.3, 0.36, 0.42], center: [0, 0.08, 0.1] },
+    hitHead: { size: [0.3, 0.3, 0.52], center: [0, 0.02, 0.1] },
+  };
+}
+
+function bearModel() {
+  const back = '#46321f', belly = '#694b33', muzzle = '#a98a66', claw = '#1a1410';
+  const ear = blob(0.085, back, [0, 0.03, 0], [1, 1, 0.45]);
+  return {
+    body: loft([
+      [1, -1, 0.08, 0.08], [1.02, -0.92, 0.36, 0.4], [1.06, -0.55, 0.52, 0.58], [1.1, -0.1, 0.56, 0.62],
+      [1.14, 0.35, 0.54, 0.62], [1.12, 0.66, 0.42, 0.5], [1.06, 0.82, 0.16, 0.2],
+    ], { top: back, bottom: belly, sides: 14, mottle: 0.1 }),
+    neck: {
+      pivot: [0, 1.12, 0.72],
+      geometry: loft([[0, -0.1, 0.36, 0.42], [-0.02, 0.12, 0.3, 0.33], [-0.06, 0.3, 0.25, 0.26]], { top: back, bottom: belly, sides: 12, steps: 3, mottle: 0.1 }),
+    },
+    head: {
+      pivot: [0, -0.04, 0.32],
+      geometry: merge(
+        loft([
+          [0.05, -0.14, 0.08, 0.08], [0.06, -0.06, 0.22, 0.21], [0.03, 0.08, 0.23, 0.215], [-0.03, 0.22, 0.14, 0.13],
+          [-0.07, 0.34, 0.095, 0.085], [-0.08, 0.4, 0.06, 0.055], [-0.08, 0.42, 0.02, 0.02],
+        ], { top: back, bottom: muzzle, tip: ['#17110e', 0.9], mottle: 0.1 }),
+        eyes(0.125, 0.1, 0.13, 0.022),
+      ),
+    },
+    ears: earPair(0.17, 0.21, -0.03, ear, 0, 0.35),
+    tail: { pivot: [0, 1.1, -0.96], rest: 0, geometry: blob(0.08, back, [0, 0, -0.03]) },
+    legs: [
+      ...legPair(0.3, 0.82, 0.5,
+        limb([[0.12, 0, 0.17, 0.2], [-0.2, 0, 0.15, 0.17], [-0.38, 0, 0.12, 0.13]], { top: back, bottom: belly }),
+        [0, -0.38, 0],
+        limb([[0, 0, 0.115, 0.125], [-0.25, 0.01, 0.105, 0.115], [-0.4, 0.04, 0.125, 0.16], [-0.44, 0.07, 0.06, 0.1]], { top: back, tip: [claw, 0.7] })),
+      ...legPair(0.3, 0.9, -0.6,
+        limb([[0.15, 0, 0.21, 0.3], [-0.18, -0.03, 0.17, 0.22], [-0.42, -0.06, 0.125, 0.14]], { top: back, bottom: belly }),
+        [0, -0.42, -0.06],
+        limb([[0, 0, 0.12, 0.125], [-0.26, 0.02, 0.1, 0.11], [-0.44, 0.08, 0.125, 0.17], [-0.48, 0.12, 0.06, 0.1]], { top: back, tip: [claw, 0.72] })),
+    ],
+    hitBody: { size: [1.3, 1.55, 2.35], center: [0, 0.98, -0.05] },
+    hitHead: { size: [0.56, 0.52, 0.78], center: [0, 0.03, 0.14] },
+  };
+}
+
+function duckModel() {
+  const back = '#7c6b58', belly = '#d3c8b6', green = '#1e5c3c', wing = '#6a5a49';
+  return {
+    body: merge(
+      loft([
+        [0.18, -0.24, 0.02, 0.015], [0.19, -0.2, 0.07, 0.05], [0.16, -0.08, 0.125, 0.1],
+        [0.15, 0.06, 0.13, 0.105], [0.17, 0.16, 0.09, 0.085], [0.2, 0.22, 0.03, 0.03],
+      ], { top: back, bottom: belly, sides: 10, mottle: 0.03 }),
+      blob(0.06, '#f4efe4', [0, 0.235, 0.17], [1, 0.4, 1]),
+    ),
+    neck: {
+      pivot: [0, 0.22, 0.18],
+      geometry: limb([[-0.02, -0.02, 0.05, 0.055], [0.08, 0.03, 0.04, 0.04], [0.16, 0.04, 0.04, 0.04]], { top: green, mottle: 0.02 }),
+    },
+    head: {
+      pivot: [0, 0.18, 0.05],
+      geometry: merge(
+        loft([[0, -0.05, 0.03, 0.03], [0.01, -0.02, 0.055, 0.055], [0.01, 0.04, 0.055, 0.05], [-0.01, 0.08, 0.03, 0.025]], { top: green, sides: 10, steps: 3, mottle: 0.02 }),
+        blob(0.03, '#d9a520', [0, -0.012, 0.11], [1, 0.42, 1.5]),
+        eyes(0.046, 0.025, 0.02, 0.011),
+      ),
+    },
+    tail: { pivot: [0, 0.2, -0.22], rest: -0.5, geometry: painted(new THREE.ConeGeometry(0.05, 0.12, 6), '#e6e0d2', [0, 0, -0.04], [-Math.PI / 2, 0, 0], [1, 0.8, 0.5]) },
+    wings: { geometry: blob(0.1, wing, [0.1, 0, -0.03], [1.25, 0.12, 0.68]), pivots: [[-0.09, 0.2, 0.02], [0.09, 0.2, 0.02]] },
+    legs: [],
+    hitBody: { size: [0.62, 0.62, 0.86], center: [0, 0.24, 0] },
+    hitHead: { size: [0.2, 0.26, 0.3], center: [0, 0, 0.04] },
+  };
+}
+
+function fishModel() {
+  const fin = painted(new THREE.ConeGeometry(0.13, 0.2, 6), '#3d5a5a', [0, 0, -0.08], [-Math.PI / 2, 0, 0], [0.2, 1, 1]);
+  return {
+    body: merge(
+      loft([
+        [0, -0.32, 0.01, 0.02], [0, -0.24, 0.03, 0.05], [0, -0.05, 0.07, 0.12],
+        [0, 0.1, 0.07, 0.11], [0, 0.22, 0.04, 0.06], [0, 0.27, 0.01, 0.015],
+      ], { top: '#3d5a5a', bottom: '#dfe4e4', sides: 10, mottle: 0.1 }),
+      eyes(0.05, 0.03, 0.17, 0.014),
+      painted(new THREE.ConeGeometry(0.1, 0.16, 5), '#335050', [0, 0.14, 0], [0, 0, 0], [0.15, 1, 1]),
+    ),
+    tail: { pivot: [0, 0, -0.3], rest: 0, geometry: fin },
+    legs: [],
+    hitBody: { size: [0.42, 0.5, 0.9], center: [0, 0, 0] },
+  };
+}
+
 /* ==========================================================================
    9. HAYVON TURLARI VA XULQ-ATVORI
    ========================================================================== */
 
 const SPECIES = {
   deer: {
-    name: 'Bug‘u', points: 25, hp: 2, headDamage: 2, count: 24, wadeDepth: 0.8, model: deerModel(),
+    name: 'Bug‘u', points: 25, hp: 2, headDamage: 2, count: 24, groupSize: [3, 4], drinks: true, wadeDepth: 0.8, model: deerModel(),
     walkSpeed: 2.1, runSpeed: 11.5, turnRate: 3.2, radius: 0.7,
     senseRange: 30, alertTime: [0.5, 1], stride: 1.5, grazeAngle: 2.05, lieHeight: 0.3,
   },
@@ -1548,10 +1682,38 @@ const SPECIES = {
   },
   boar: {
     // Qalin bosh suyagi: yugurib kelayotgan cho'chqani bitta o'q to'xtatmaydi
-    name: 'Cho‘chqa', points: 40, hp: 3, headDamage: 2, count: 14, wadeDepth: 0.9, model: boarModel(),
+    name: 'Cho‘chqa', points: 40, hp: 3, headDamage: 2, count: 14, drinks: true, wadeDepth: 0.9, voice: 'grunt', model: boarModel(),
     walkSpeed: 1.7, runSpeed: 8.6, turnRate: 3.6, radius: 0.75,
     senseRange: 24, alertTime: [0.4, 0.7], stride: 2.8, grazeAngle: 0.75, lieHeight: 0.42,
     aggressive: true, damage: 20, biteRange: 2, giveUpRange: 60,
+  },
+  fox: {
+    name: 'Tulki', points: 30, hp: 1, headDamage: 1, count: 12, wadeDepth: 0.3, scale: 0.66, tailWag: 0.25,
+    model: canineModel({ back: '#c4632a', belly: '#f2e9dc', sock: '#231a16', tailTip: '#f6f0e6', muzzle: '#f2e9dc', earScale: 1.35, tailScale: 1.25 }),
+    walkSpeed: 1.9, runSpeed: 11, turnRate: 7, radius: 0.32, zigzag: true,
+    senseRange: 32, alertTime: [0.1, 0.3], stride: 3.4, grazeAngle: 0.95, lieHeight: 0.17,
+  },
+  duck: {
+    name: 'O‘rdak', points: 35, hp: 1, headDamage: 1, count: 14, model: duckModel(), scale: 1.25,
+    walkSpeed: 0.9, runSpeed: 14, turnRate: 3, radius: 0.3,
+    senseRange: 20, lieHeight: 0.08,
+  },
+  fish: {
+    name: 'Baliq', points: 20, hp: 1, headDamage: 1, count: 5, model: fishModel(), scale: 1.5,
+    walkSpeed: 1, runSpeed: 1, turnRate: 1, radius: 0.2, senseRange: 0, lieHeight: 0.02,
+  },
+  wolf: {
+    name: 'Bo‘ri', points: 50, hp: 2, headDamage: 2, count: 12, groupSize: [3, 4], wadeDepth: 0.9, tailWag: 0.18, voice: 'growl',
+    model: canineModel({ back: '#6d6c6b', belly: '#cbc7be', sock: '#8c8a86', tailTip: '#2f2e2d', muzzle: '#cbc7be' }),
+    walkSpeed: 2.4, runSpeed: 10.2, turnRate: 4.5, radius: 0.5,
+    senseRange: 28, alertTime: [0.3, 0.5], stride: 2.6, grazeAngle: 0.55, lieHeight: 0.26,
+    aggressive: true, pack: true, damage: 15, biteRange: 1.8, giveUpRange: 70,
+  },
+  bear: {
+    name: 'Ayiq', points: 120, hp: 6, headDamage: 2, count: 6, drinks: true, wadeDepth: 1.1, voice: 'growl', model: bearModel(),
+    walkSpeed: 1.5, runSpeed: 9.2, turnRate: 2.6, radius: 1.1,
+    senseRange: 15, alertTime: [0.6, 0.9], stride: 1.7, grazeAngle: 0.8, lieHeight: 0.62,
+    aggressive: true, rears: true, damage: 35, biteRange: 2.6, giveUpRange: 70, recoverTime: 1.8,
   },
 };
 
@@ -1592,9 +1754,11 @@ class Animal {
 
     // Tana, bo'yin, bosh, quloqlar, dum va ikki bo'g'inli oyoqlar
     this.body = addPart(model.body, this.root, [0, 0, 0]);
-    this.neck = addPart(model.neck.geometry, this.root, model.neck.pivot);
-    this.head = addPart(model.head.geometry, this.neck, model.head.pivot);
-    this.ears = model.ears.pivots.map((pivot, index) => {
+    if (model.neck) {
+      this.neck = addPart(model.neck.geometry, this.root, model.neck.pivot);
+      this.head = addPart(model.head.geometry, this.neck, model.head.pivot);
+    }
+    this.ears = (model.ears?.pivots ?? []).map((pivot, index) => {
       const ear = addPart(model.ears.geometry, this.head, pivot, false);
       ear.rotation.set(model.ears.tiltX, 0, (index === 0 ? 1 : -1) * model.ears.tiltZ);
       return ear;
@@ -1605,23 +1769,33 @@ class Animal {
       return { thigh, shin: addPart(lower, thigh, knee, false) };
     });
 
-    this.hitBoxes = [
-      createHitBox(model.hitBody, this.root, this, 'body'),
-      createHitBox(model.hitHead, this.head, this, 'head'),
-    ];
+    this.hitBoxes = [createHitBox(model.hitBody, this.root, this, 'body')];
+    if (model.hitHead) this.hitBoxes.push(createHitBox(model.hitHead, this.head, this, 'head'));
     if (model.hitNeck) this.hitBoxes.push(createHitBox(model.hitNeck, this.neck, this, 'body'));
     scene.add(this.root);
   }
 
-  /** Hayvonni o'yinchidan uzoqroq, bo'sh joyga qayta chiqaradi. */
-  spawn(minDistance) {
+  /** Bo'sh quruqlik nuqtasi. Guruh a'zolari yo'lboshchisi yonida chiqadi. */
+  findSpawnPoint(minDistance) {
+    const leader = this.group && groupLeader(this.group);
     let x = 0, z = 0;
     for (let attempt = 0; attempt < 40; attempt++) {
-      ({ x, z } = randomPoint(CONFIG.worldRadius - 6));
+      if (leader && leader !== this) {
+        x = leader.pos.x + randRange(-7, 7);
+        z = leader.pos.z + randRange(-7, 7);
+      } else {
+        ({ x, z } = randomPoint(CONFIG.worldRadius - 6));
+      }
       const farEnough = Math.hypot(x - player.pos.x, z - player.pos.z) > minDistance;
       if (farEnough && isDryLand(x, z) && isSpotFree(x, z, this.spec.radius + 0.3)) break;
     }
-    this.pos.set(x, terrainHeight(x, z), z);
+    return { x, z };
+  }
+
+  /** Hayvonni o'yinchidan uzoqroq, bo'sh joyga qayta chiqaradi. */
+  spawn(minDistance) {
+    const { x, z } = this.findSpawnPoint(minDistance);
+    this.pos.set(x, this.groundLevel(x, z), z);
     this.spawned = true;
     this.root.visible = true;
     this.root.rotation.set(0, Math.random() * TAU, 0);
@@ -1634,6 +1808,7 @@ class Animal {
     this.headGoal = 0;
     this.earTwitch = 0;
     this.farClock = 0;
+    this.rearAmount = 0;
     this.avoidSide = pick([-1, 1]);
     this.target = { x, z };
     this.deadTime = 0;
@@ -1650,6 +1825,10 @@ class Animal {
     return this.state !== 'dead';
   }
 
+  groundLevel(x, z) {
+    return terrainHeight(x, z);
+  }
+
   distanceToPlayer() {
     return Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
   }
@@ -1661,17 +1840,43 @@ class Animal {
   /** Hayvon o'yinchini sezdi: bir lahza qotib qaraydi. Aynan shu payt otish uchun qulay. */
   notice() {
     this.setState('alert', randRange(...this.spec.alertTime));
-    if (this.spec.aggressive) sound.grunt(this.pos);
+    if (this.spec.voice) sound[this.spec.voice](this.pos);
+  }
+
+  /** Guruhdagi boshqa hayvonlarni ham ogohlantiradi. */
+  alertGroup() {
+    for (const mate of this.group?.members ?? []) {
+      if (mate !== this && mate.alive && mate.spawned) mate.startle();
+    }
+  }
+
+  beginFlee() {
+    this.setState('flee', randRange(4, 7));
+    this.alertGroup();
+  }
+
+  /** Yirtqichlar turiga qarab hujum boshlaydi: bo'rilar o'raydi, ayiq avval tik turadi. */
+  beginAttack() {
+    const { spec } = this;
+    if (spec.pack) {
+      this.setState('stalk');
+    } else if (spec.rears) {
+      this.setState('rear', 1.5);
+      sound.roar(this.pos);
+    } else {
+      this.setState('charge');
+    }
+    this.alertGroup();
   }
 
   /** O'q ovozi yoki jarohat: endi kutib turmaydi. */
   startle() {
-    if (this.state === 'flee' || this.state === 'charge' || this.state === 'recover') return;
+    if (['flee', 'charge', 'recover', 'stalk', 'rear'].includes(this.state)) return;
     if (this.spec.aggressive) {
-      this.setState('charge');
-      sound.grunt(this.pos);
+      if (this.spec.voice) sound[this.spec.voice](this.pos);
+      this.beginAttack();
     } else {
-      this.setState('flee', randRange(4, 7));
+      this.beginFlee();
     }
   }
 
@@ -1683,7 +1888,6 @@ class Animal {
       this.fallSide = pick([-1, 1]);
       return true;
     }
-    this.state = 'graze'; // startle() hozirgi holatdan qat'i nazar ishlashi uchun
     this.startle();
     return false;
   }
@@ -1741,8 +1945,8 @@ class Animal {
         this.headGoal = -0.12;
         this.faceTowards(player.pos.x, player.pos.z);
         if (this.stateTime <= 0) {
-          if (spec.aggressive) this.setState('charge');
-          else this.setState('flee', randRange(4, 7));
+          if (spec.aggressive) this.beginAttack();
+          else this.beginFlee();
         }
         return 0;
 
@@ -1750,6 +1954,7 @@ class Animal {
         this.headGoal = 0.1;
         this.wantedHeading = Math.atan2(this.pos.x - player.pos.x, this.pos.z - player.pos.z)
           + Math.sin(this.gait * 0.13) * 0.5;
+        if (spec.zigzag) this.wantedHeading += Math.sin(this.gait * 0.45) * 0.9;
         // Chegaraga yetganda burilib, dunyo markazi tomon qochadi
         if (Math.hypot(this.pos.x, this.pos.z) > CONFIG.worldRadius - 12) this.faceTowards(0, 0);
         if (this.stateTime <= 0) {
@@ -1763,7 +1968,7 @@ class Animal {
         this.faceTowards(player.pos.x, player.pos.z);
         if (distance < spec.biteRange) {
           damagePlayer(spec.damage, this);
-          this.setState('recover', 1.3);
+          this.setState('recover', spec.recoverTime ?? 1.3);
         } else if (distance > spec.giveUpRange || game.state !== 'playing') {
           this.pickWanderTarget();
         }
@@ -1773,17 +1978,79 @@ class Animal {
         // Urgandan keyin biroz chekinadi, so'ng yana yuguradi
         this.headGoal = 0.1;
         this.wantedHeading = Math.atan2(this.pos.x - player.pos.x, this.pos.z - player.pos.z);
-        if (this.stateTime <= 0) this.setState('charge');
+        if (this.stateTime <= 0) this.setState(spec.pack ? 'stalk' : 'charge');
         return spec.walkSpeed * 2;
+
+      case 'stalk':
+        return this.stalk(dt, distance);
+
+      case 'rear':
+        // Ayiq orqa oyog'ida turib na'ra tortadi: bu qochish yoki otish uchun oxirgi imkoniyat
+        this.headGoal = -0.3;
+        this.faceTowards(player.pos.x, player.pos.z);
+        if (this.stateTime <= 0) this.setState('charge');
+        return 0;
     }
     return 0;
   }
 
+  /** Bo'rilar o'yinchini aylanib o'raydi, keyin navbat bilan bittadan hujum qiladi. */
+  stalk(dt, distance) {
+    const { spec, group } = this;
+    const pack = group.members.filter((mate) => mate.alive && mate.spawned);
+    this.headGoal = 0.35;
+
+    if (pack.length === 1) {
+      this.beginFlee(); // yolg'iz qolgan bo'ri qochadi
+      return 0;
+    }
+    if (distance > spec.giveUpRange || game.state !== 'playing') {
+      this.pickWanderTarget();
+      return 0;
+    }
+
+    if (this === pack[0]) {
+      group.orbit += dt * 0.35;
+      group.attackTimer -= dt;
+      if (group.attackTimer <= 0) {
+        const stalkers = pack.filter((mate) => mate.state === 'stalk');
+        if (stalkers.length) pick(stalkers).setState('charge');
+        group.attackTimer = randRange(2.2, 3.6);
+      }
+    }
+
+    const angle = group.orbit + (pack.indexOf(this) / pack.length) * TAU;
+    const x = player.pos.x + Math.cos(angle) * 14, z = player.pos.z + Math.sin(angle) * 14;
+    this.faceTowards(x, z);
+    return clamp(Math.hypot(x - this.pos.x, z - this.pos.z) * 1.5, 1, spec.runSpeed * 0.75);
+  }
+
+  /** Bug'u kabi hayvonlar ba'zan qirg'oqqa suv ichgani boradi. */
+  pickDrinkingSpot() {
+    let nearest = null, nearestDistance = 70;
+    for (let i = 0; i < 12 && shorePoints.length; i++) {
+      const point = pick(shorePoints);
+      const distance = Math.hypot(point.x - this.pos.x, point.z - this.pos.z);
+      if (distance < nearestDistance) {
+        nearest = point;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
+  }
+
   pickWanderTarget() {
+    const leader = this.group && groupLeader(this.group);
+    const drinkingSpot = this.spec.drinks && Math.random() < 0.3 ? this.pickDrinkingSpot() : null;
     const angle = Math.random() * TAU, distance = randRange(8, 26);
-    const limit = CONFIG.worldRadius - 8;
-    const x = this.pos.x + Math.cos(angle) * distance, z = this.pos.z + Math.sin(angle) * distance;
-    const scale = Math.min(1, limit / Math.hypot(x, z));
+    let x = this.pos.x + Math.cos(angle) * distance, z = this.pos.z + Math.sin(angle) * distance;
+    if (leader && leader !== this) {
+      x = leader.pos.x + randRange(-6, 6);
+      z = leader.pos.z + randRange(-6, 6);
+    } else if (drinkingSpot) {
+      ({ x, z } = drinkingSpot);
+    }
+    const scale = Math.min(1, (CONFIG.worldRadius - 8) / Math.hypot(x, z));
     this.target = { x: x * scale, z: z * scale };
     this.avoidSide = pick([-1, 1]);
     this.setState('walk', randRange(6, 14));
@@ -1848,11 +2115,20 @@ class Animal {
     // Vaqti-vaqti bilan quloq chivinni haydagandek qimirlab qo'yadi
     this.earTwitch = damp(this.earTwitch, 0, 9, dt);
     if (Math.random() < dt * 0.35) this.earTwitch = 1;
-    this.ears[0].rotation.x = spec.model.ears.tiltX + this.earTwitch * 0.5;
+    if (this.ears.length) this.ears[0].rotation.x = spec.model.ears.tiltX + this.earTwitch * 0.5;
 
     const moving = clamp(this.speed / spec.walkSpeed, 0, 1);
     if (spec.hops) this.animateHop(moving);
     else this.animateGait(moving);
+
+    // Ayiq tik turganda tana orqa oyoqlar ustiga ko'tariladi
+    this.rearAmount = damp(this.rearAmount, this.state === 'rear' ? 1 : 0, 5, dt);
+    if (this.rearAmount > 0.01) {
+      this.root.rotation.x -= this.rearAmount * 1.15;
+      this.pos.y += this.rearAmount * 0.85;
+      this.legs[0].thigh.rotation.x -= this.rearAmount * 0.7;
+      this.legs[1].thigh.rotation.x -= this.rearAmount * 0.5;
+    }
   }
 
   /** Yurish va chopish: tezlik oshgani sari oyoq ritmi yurishdan yelishga o'tadi. */
@@ -1891,14 +2167,16 @@ class Animal {
     root.rotation.z = damp(root.rotation.z, this.fallSide * Math.PI / 2, 7, dt);
 
     // Tana bo'shashadi: bosh osilib, oyoqlar asta to'g'rilanadi
-    this.neck.rotation.x = damp(this.neck.rotation.x, 0.6, 5, dt);
-    this.head.rotation.x = damp(this.head.rotation.x, 0.3, 5, dt);
+    if (this.neck) {
+      this.neck.rotation.x = damp(this.neck.rotation.x, 0.6, 5, dt);
+      this.head.rotation.x = damp(this.head.rotation.x, 0.3, 5, dt);
+    }
     for (const { thigh, shin } of this.legs) {
       thigh.rotation.x = damp(thigh.rotation.x, 0.15, 4, dt);
       shin.rotation.x = damp(shin.rotation.x, 0.25, 4, dt);
     }
 
-    const ground = terrainHeight(this.pos.x, this.pos.z) + spec.lieHeight * (spec.scale ?? 1);
+    const ground = this.groundLevel(this.pos.x, this.pos.z) + spec.lieHeight * (spec.scale ?? 1);
     if (this.deadTime < 7) {
       this.pos.y = damp(this.pos.y, ground, 7, dt);
     } else {
@@ -1912,9 +2190,191 @@ class Animal {
   }
 }
 
+/** Ko'l ichidagi yetarlicha chuqur tasodifiy nuqta. */
+function randomLakePoint(lake = pick(lakes)) {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const angle = Math.random() * TAU, radius = Math.sqrt(Math.random()) * lake.radius * 0.8;
+    const x = lake.x + Math.cos(angle) * radius, z = lake.z + Math.sin(angle) * radius;
+    if (waterDepth(x, z) > 0.7) return { x, z };
+  }
+  return { x: lake.x, z: lake.z };
+}
+
+/** O'rdak ko'lda suzadi, cho'chisa boshqa ko'lga uchib ketadi. Uchayotganda ham otish mumkin. */
+class Duck extends Animal {
+  constructor(kind) {
+    super(kind);
+    const { wings } = this.spec.model;
+    this.wings = wings.pivots.map((pivot, index) => {
+      const wing = new THREE.Mesh(wings.geometry, furMaterial);
+      wing.position.set(...pivot);
+      if (index === 0) wing.scale.x = -1; // chap qanot o'ng qanotning ko'zgudagi aksi
+      this.root.add(wing);
+      return wing;
+    });
+  }
+
+  findSpawnPoint() {
+    return randomLakePoint();
+  }
+
+  groundLevel(x, z) {
+    return Math.max(terrainHeight(x, z), WATER_LEVEL);
+  }
+
+  spawn(minDistance) {
+    super.spawn(minDistance);
+    this.flight = null;
+    this.setState('swim', randRange(2, 6));
+  }
+
+  startle() {
+    if (this.state !== 'swim') return;
+    const target = randomLakePoint();
+    const distance = Math.hypot(target.x - this.pos.x, target.z - this.pos.z);
+    this.flight = {
+      fromX: this.pos.x, fromZ: this.pos.z, toX: target.x, toZ: target.z,
+      progress: 0, duration: Math.max(5, distance / this.spec.runSpeed), height: randRange(15, 24),
+    };
+    this.setState('fly');
+    sound.quack(this.pos);
+  }
+
+  think(dt) {
+    if (this.state === 'fly') return 0;
+    this.stateTime -= dt;
+    if (this.distanceToPlayer() < this.spec.senseRange * player.noise) {
+      this.startle();
+    } else if (this.stateTime <= 0) {
+      const angle = Math.random() * TAU;
+      this.target = { x: this.pos.x + Math.cos(angle) * 8, z: this.pos.z + Math.sin(angle) * 8 };
+      this.stateTime = randRange(3, 8);
+    }
+    return this.spec.walkSpeed;
+  }
+
+  move(dt, speedGoal) {
+    const { pos, root } = this;
+    if (this.state === 'fly') {
+      const { flight } = this;
+      flight.progress = Math.min(1, flight.progress + dt / flight.duration);
+      const t = flight.progress;
+      const x = lerp(flight.fromX, flight.toX, t), z = lerp(flight.fromZ, flight.toZ, t);
+      this.heading = Math.atan2(x - pos.x, z - pos.z) || this.heading;
+      pos.set(x, WATER_LEVEL + Math.pow(Math.sin(t * Math.PI), 0.55) * flight.height, z);
+      root.rotation.set(t < 0.5 ? -0.3 : 0.05, this.heading, 0);
+      if (t >= 1) this.setState('swim', randRange(2, 6));
+      return;
+    }
+
+    this.faceTowards(this.target.x, this.target.z);
+    this.heading += clamp(angleDelta(this.heading, this.wantedHeading), -this.spec.turnRate * dt, this.spec.turnRate * dt);
+    const nextX = pos.x + Math.sin(this.heading) * speedGoal * dt;
+    const nextZ = pos.z + Math.cos(this.heading) * speedGoal * dt;
+    if (waterDepth(nextX, nextZ) > 0.45) {
+      pos.x = nextX;
+      pos.z = nextZ;
+    } else {
+      this.stateTime = 0; // qirg'oqqa yetdi: yangi yo'nalish tanlaydi
+    }
+    pos.y = WATER_LEVEL - 0.08;
+    root.rotation.set(0, this.heading, 0);
+  }
+
+  animate(dt) {
+    this.idleClock += dt;
+    const flying = this.state === 'fly';
+    const flap = flying ? Math.sin(this.idleClock * 24) * 0.85 : -0.05;
+    this.wings[0].rotation.z = -flap;
+    this.wings[1].rotation.z = flap;
+    this.neck.rotation.x = flying ? 0.9 : Math.sin(this.idleClock * 1.3) * 0.08;
+    this.head.rotation.x = flying ? -0.8 : 0;
+    this.tail.rotation.x = this.spec.model.tail.rest;
+    if (!flying) this.pos.y += Math.sin(this.idleClock * 2) * 0.012;
+  }
+}
+
+/** Baliq ko'pincha ko'rinmaydi, faqat vaqti-vaqti bilan o'yinchiga eng yaqin ko'ldan sakraydi. */
+class Fish extends Animal {
+  groundLevel(x, z) {
+    return Math.max(terrainHeight(x, z), WATER_LEVEL);
+  }
+
+  findSpawnPoint() {
+    return randomLakePoint();
+  }
+
+  spawn(minDistance) {
+    super.spawn(minDistance);
+    this.root.visible = false;
+    this.setState('hidden', randRange(2, 9));
+  }
+
+  startle() {}
+
+  leap() {
+    const lake = lakes.reduce((best, candidate) => (
+      Math.hypot(candidate.x - player.pos.x, candidate.z - player.pos.z)
+        < Math.hypot(best.x - player.pos.x, best.z - player.pos.z) ? candidate : best));
+    const { x, z } = randomLakePoint(lake);
+    this.pos.set(x, WATER_LEVEL, z);
+    this.heading = Math.random() * TAU;
+    this.root.visible = true;
+    this.setState('leap', 1);
+    if (this.distanceToPlayer() < 70) {
+      burst(this.pos, '#dcebf0', 8, 2);
+      sound.splash();
+    }
+  }
+
+  update(dt) {
+    if (!this.spawned || this.state === 'dead') {
+      super.update(dt);
+      return;
+    }
+    this.stateTime -= dt;
+    if (this.state === 'hidden') {
+      if (this.stateTime <= 0) this.leap();
+      return;
+    }
+
+    // Sakrash yoyi: baliq havoda burilib, boshi bilan suvga tushadi
+    const t = 1 - Math.max(this.stateTime, 0);
+    this.pos.x += Math.sin(this.heading) * 2.2 * dt;
+    this.pos.z += Math.cos(this.heading) * 2.2 * dt;
+    this.pos.y = WATER_LEVEL - 0.25 + Math.sin(t * Math.PI) * 1.7;
+    this.root.rotation.set(-Math.cos(t * Math.PI) * 1.1, this.heading, 0);
+    this.tail.rotation.y = Math.sin(this.stateTime * 40) * 0.5;
+    if (this.stateTime <= 0) {
+      this.root.visible = false;
+      this.setState('hidden', randRange(3, 10));
+    }
+  }
+}
+
+const ANIMAL_CLASSES = { duck: Duck, fish: Fish };
+
+/** Guruhning hozirgi yo'lboshchisi: tirik a'zolardan birinchisi. */
+function groupLeader(group) {
+  return group.members.find((member) => member.alive && member.spawned) ?? null;
+}
+
 function createAnimals() {
   for (const [kind, spec] of Object.entries(SPECIES)) {
-    for (let i = 0; i < spec.count; i++) animals.push(new Animal(kind));
+    const AnimalClass = ANIMAL_CLASSES[kind] ?? Animal;
+    let group = null, groupRoom = 0;
+    for (let i = 0; i < spec.count; i++) {
+      const animal = new AnimalClass(kind);
+      animals.push(animal);
+      if (!spec.groupSize) continue;
+      if (groupRoom === 0) {
+        group = { members: [], orbit: Math.random() * TAU, attackTimer: 2 };
+        groupRoom = Math.round(randRange(...spec.groupSize));
+      }
+      animal.group = group;
+      group.members.push(animal);
+      groupRoom--;
+    }
   }
 }
 
@@ -2062,7 +2522,7 @@ function damagePlayer(amount, attacker) {
   );
   ui.vignette.animate([{ opacity: 1 }, { opacity: lowHealthGlow() }], { duration: 600, easing: 'ease-out' });
   updateHealthHud();
-  if (player.hp === 0) endRound('hp');
+  if (player.hp === 0) endRound(`${attacker.spec.name} sizni yengdi`);
 }
 
 /* ==========================================================================
@@ -2373,6 +2833,7 @@ const sound = {
   noise: null,
   muted: false,
   birdTimer: 3,
+  howlTimer: 20,
 
   /** Brauzer ovozni faqat foydalanuvchi bosgandan keyin ruxsat beradi. */
   init() {
@@ -2480,21 +2941,51 @@ const sound = {
     this.tone({ type: 'triangle', from: 170, to: 60, volume: 0.7, duration: 0.3 });
     this.noiseHit({ from: 500, to: 120, volume: 0.6, duration: 0.22 });
   },
-  /** Cho'chqa xirillashi: yaqin bo'lsa baland, chap-o'ng tomoni ham eshitiladi. */
+  /** Hayvon ovozi uchun: yaqin bo'lsa baland, chap-o'ng tomoni ham eshitiladi. */
+  spatial(position) {
+    const dx = position.x - player.pos.x, dz = position.z - player.pos.z;
+    const panner = this.context.createStereoPanner();
+    panner.pan.value = clamp(Math.sin(angleFromView(position.x, position.z)), -1, 1);
+    panner.connect(this.master);
+    return { panner, volume: clamp(1 - Math.hypot(dx, dz) / 70, 0.04, 1) };
+  },
   grunt(position) {
     if (!this.context) return;
-    const dx = position.x - player.pos.x, dz = position.z - player.pos.z;
-    const distance = Math.hypot(dx, dz);
-    const volume = clamp(1 - distance / 55, 0.05, 1) * 0.5;
-    const panner = this.context.createStereoPanner();
-    const relative = Math.atan2(dx, -dz) + player.yaw;
-    panner.pan.value = clamp(Math.sin(relative), -1, 1);
-    panner.connect(this.master);
+    const { panner, volume } = this.spatial(position);
     for (let i = 0; i < 3; i++) {
       const delay = i * 0.13;
-      this.tone({ type: 'sawtooth', from: randRange(95, 125), to: 60, volume, duration: 0.14, delay, target: panner });
-      this.noiseHit({ type: 'bandpass', from: 500, to: 260, volume: volume * 0.8, duration: 0.12, delay, target: panner });
+      this.tone({ type: 'sawtooth', from: randRange(95, 125), to: 60, volume: volume * 0.5, duration: 0.14, delay, target: panner });
+      this.noiseHit({ type: 'bandpass', from: 500, to: 260, volume: volume * 0.4, duration: 0.12, delay, target: panner });
     }
+  },
+  growl(position) {
+    if (!this.context) return;
+    const { panner, volume } = this.spatial(position);
+    this.tone({ type: 'sawtooth', from: 85, to: 62, volume: volume * 0.4, duration: 0.8, target: panner });
+    this.noiseHit({ type: 'bandpass', from: 320, to: 180, volume: volume * 0.45, duration: 0.8, target: panner });
+  },
+  roar(position) {
+    if (!this.context) return;
+    const { panner, volume } = this.spatial(position);
+    this.tone({ type: 'sawtooth', from: 150, to: 58, volume: volume * 0.65, duration: 1.3, target: panner });
+    this.tone({ type: 'square', from: 74, to: 40, volume: volume * 0.4, duration: 1.3, target: panner });
+    this.noiseHit({ from: 900, to: 200, volume: volume * 0.6, duration: 1.3, target: panner });
+  },
+  quack(position) {
+    if (!this.context) return;
+    const { panner, volume } = this.spatial(position);
+    for (let i = 0; i < 3; i++) {
+      this.tone({ type: 'square', from: 520, to: 300, volume: volume * 0.18, duration: 0.11, delay: i * 0.17, target: panner });
+    }
+  },
+  /** Uzoqdan eshitiladigan bo'ri uvillashi. */
+  howl() {
+    if (!this.context) return;
+    const panner = this.context.createStereoPanner();
+    panner.pan.value = randRange(-0.8, 0.8);
+    panner.connect(this.master);
+    this.tone({ from: 300, to: 470, volume: 0.05, duration: 1, target: panner });
+    this.tone({ from: 470, to: 330, volume: 0.05, duration: 1.8, delay: 0.95, target: panner });
   },
   tick() {
     this.tone({ type: 'square', from: 1100, volume: 0.05, duration: 0.05 });
@@ -2526,8 +3017,13 @@ const sound = {
     swell.start();
   },
 
-  /** Vaqti-vaqti bilan uzoqdan qush sayraydi. */
-  updateBirds(dt) {
+  /** Vaqti-vaqti bilan uzoqdan qush sayraydi yoki bo'ri uvillaydi. */
+  updateAmbience(dt) {
+    this.howlTimer -= dt;
+    if (this.howlTimer <= 0) {
+      this.howlTimer = randRange(30, 60);
+      this.howl();
+    }
     this.birdTimer -= dt;
     if (this.birdTimer > 0 || !this.context) return;
     this.birdTimer = randRange(3, 9);
@@ -2589,6 +3085,7 @@ const ui = {
 function updateScoreHud() {
   ui.score.textContent = game.score;
   ui.killLine.textContent = Object.keys(SPECIES)
+    .filter((kind) => game.kills[kind] > 0)
     .map((kind) => `${SPECIES[kind].name} ${game.kills[kind]}`)
     .join(' · ');
 }
@@ -2709,7 +3206,12 @@ function resetRound() {
   Object.assign(weapon, { ammo: CONFIG.weapon.magazine, cooldown: 0, reloadLeft: 0, kick: 0, flashLeft: 0 });
   ui.reloadBar.classList.remove('active');
 
-  animals.forEach((animal) => animal.spawn(30));
+  animals.forEach((animal) => {
+    animal.spawned = false; // guruh a'zolari yangi joyda yo'lboshchisi yonida chiqishi uchun
+    animal.state = 'graze';
+  });
+  // Yirtqichlar boshlanishda uzoqroqda bo'ladi, o'yinchiga tayyorlanishga vaqt qoladi
+  animals.forEach((animal) => animal.spawn(animal.spec.aggressive ? 85 : 30));
 
   updateScoreHud();
   updateAmmoHud();
@@ -2799,12 +3301,14 @@ function endRound(reason) {
   if (isRecord) profile.best = game.score;
   saveProfile();
 
-  ui.finalReason.textContent = reason === 'hp' ? 'Cho‘chqa sizni yengdi' : 'Vaqt tugadi';
+  ui.finalReason.textContent = reason;
   ui.finalScore.textContent = game.score;
   ui.finalBest.textContent = isRecord ? 'Yangi rekord!' : `Rekord: ${previousBest}`;
 
   const accuracy = game.shots ? Math.round((game.hits / game.shots) * 100) : 0;
-  const rows = Object.keys(SPECIES).map((kind) => [SPECIES[kind].name, game.kills[kind]]);
+  const rows = Object.keys(SPECIES)
+    .filter((kind) => game.kills[kind] > 0)
+    .map((kind) => [SPECIES[kind].name, game.kills[kind]]);
   rows.push(['Aniqlik', `${accuracy}% (${game.hits} / ${game.shots})`]);
   ui.finalTable.replaceChildren(...rows.map(([label, value]) => {
     const row = document.createElement('tr');
@@ -2818,7 +3322,7 @@ function endRound(reason) {
 function updateRound(dt) {
   game.timeLeft = Math.max(0, game.timeLeft - dt);
   updateTimeHud();
-  if (game.timeLeft === 0) endRound('time');
+  if (game.timeLeft === 0) endRound('Vaqt tugadi');
 }
 
 /* ==========================================================================
@@ -2932,13 +3436,9 @@ byId('preyList').replaceChildren(...Object.values(SPECIES).map((spec) => {
   const item = document.createElement('li');
   const name = document.createElement('span');
   name.textContent = spec.name;
-  if (spec.aggressive) {
-    const note = document.createElement('small');
-    note.textContent = 'hujum qiladi';
-    name.append(note);
-  }
+  name.classList.toggle('danger', Boolean(spec.aggressive));
   const points = document.createElement('b');
-  points.textContent = `${spec.points} ochko`;
+  points.textContent = spec.points;
   item.append(name, points);
   return item;
 }));
@@ -2971,7 +3471,7 @@ function frame() {
   }
   if (game.state !== 'paused') {
     updateAnimals(dt);
-    sound.updateBirds(dt);
+    sound.updateAmbience(dt);
   }
 
   updateParticles(dt);
