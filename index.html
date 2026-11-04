@@ -61,6 +61,13 @@
 
   #timePlate { top: 18px; left: 50%; transform: translateX(-50%); text-align: center; min-width: 110px; }
   #timePlate.urgent .value { color: var(--danger); }
+  #conditionLine { margin-top: 2px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+
+  #missionList { list-style: none; margin: 8px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 1.6; }
+  #missionList li { display: flex; justify-content: space-between; gap: 14px; color: var(--ink-soft); }
+  #missionList li.done { color: var(--amber); text-decoration: line-through; }
+  #medkitLine { margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
+  #medkitLine:empty { display: none; }
 
   /* Ovchi uchun ma'lumot: shamol yo'nalishi va qancha shovqin qilinayotgani */
   #fieldPlate { top: 18px; right: 18px; width: 170px; }
@@ -143,6 +150,19 @@
     #hint, #warning { white-space: normal; width: max-content; max-width: 90%; text-align: center; }
   }
 
+  /* Durbindan qaraganda ikki doira ko'rinadi */
+  #binoculars {
+    position: fixed; inset: 0; pointer-events: none; background: #050505;
+    -webkit-mask-image:
+      radial-gradient(circle at 39% 50%, transparent 37vh, #000 38vh),
+      radial-gradient(circle at 61% 50%, transparent 37vh, #000 38vh);
+    mask-image:
+      radial-gradient(circle at 39% 50%, transparent 37vh, #000 38vh),
+      radial-gradient(circle at 61% 50%, transparent 37vh, #000 38vh);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+  }
+
   /* Zarar olganda ekran chetlari qizaradi */
   #vignette {
     position: fixed; inset: 0; pointer-events: none; opacity: 0;
@@ -174,7 +194,7 @@
     align-items: center;
     background: linear-gradient(90deg, rgba(10, 15, 9, .9) 0%, rgba(10, 15, 9, .66) 38%, transparent 72%);
   }
-  #menuPanel { width: min(450px, 100%); margin: auto 0 auto 5vw; }
+  #menuPanel { width: min(500px, 100%); margin: auto 0 auto 5vw; }
   .eyebrow { margin: 0 0 8px; color: var(--amber); font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
   h1 { margin: 0; font: 400 clamp(46px, 7vw, 74px)/1 var(--title-font); }
   .lead { margin: 16px 0 18px; font-size: 16px; line-height: 1.5; color: var(--ink-soft); }
@@ -184,7 +204,7 @@
   #preyList b { color: var(--amber); font-variant-numeric: tabular-nums; }
   #preyList .danger { color: #ff9b86; }
 
-  .controls { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; margin: 0; font-size: 14px; color: var(--ink-soft); }
+  .controls { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 6px 10px; margin: 0; font-size: 13px; color: var(--ink-soft); }
   .controls dt { text-align: right; }
   .controls dd { margin: 0; align-self: center; }
   kbd {
@@ -194,12 +214,23 @@
 
   #loadError { margin-top: 14px; color: #ffb4a6; font-size: 14px; line-height: 1.45; }
 
-  #pause, #result, #settings { background: rgba(9, 13, 8, .68); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+  #pause, #result, #settings, #shop { background: rgba(9, 13, 8, .68); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
   .card {
     margin: auto; width: min(420px, 100%); padding: 30px 32px; text-align: center;
     background: rgba(16, 23, 15, .92); border: 1px solid var(--line); border-radius: 8px;
   }
+  .card.wide { width: min(560px, 100%); }
   .card h2 { margin: 0; font: 400 34px var(--title-font); }
+  #shopCoins { margin: 6px 0 14px; color: var(--amber); font-weight: 700; }
+  #shopList { list-style: none; margin: 0; padding: 0; text-align: left; }
+  #shopList li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 10px 0; border-top: 1px solid var(--line); }
+  #shopList b { font-size: 15px; }
+  #shopList small { grid-column: 1; color: var(--ink-soft); font-size: 13px; line-height: 1.35; }
+  #shopList button {
+    grid-column: 2; grid-row: 1 / span 2; align-self: center; min-width: 96px; padding: 8px 12px;
+    font: 700 14px var(--ui-font); color: #1b1407; background: var(--amber); border: 0; border-radius: 5px; cursor: pointer;
+  }
+  #shopList button:disabled { color: var(--ink-soft); background: transparent; border: 1px solid var(--line); cursor: default; }
   #pauseNote { margin: 10px 0 0; font-size: 14px; color: var(--ink-soft); min-height: 20px; }
 
   .setting { display: block; margin-top: 18px; text-align: left; font-size: 14px; color: var(--ink-soft); }
@@ -240,11 +271,13 @@
     <div class="label">Ochko</div>
     <div class="value" id="scoreValue">0</div>
     <div id="killLine"></div>
+    <ul id="missionList"></ul>
   </div>
 
   <div class="plate" id="timePlate">
     <div class="label">Vaqt</div>
     <div class="value" id="timeValue">3:00</div>
+    <div id="conditionLine"></div>
   </div>
 
   <div class="plate" id="fieldPlate">
@@ -256,10 +289,11 @@
   <div class="plate" id="hpPlate">
     <div id="hpRow"><span class="label">Jon</span><span id="hpValue">100</span></div>
     <div class="bar" id="hpBar"><i></i></div>
+    <div id="medkitLine"></div>
   </div>
 
   <div class="plate" id="ammoPlate">
-    <div class="label">O‘q</div>
+    <div class="label" id="weaponName">Miltiq</div>
     <div class="value" id="ammoValue">6 / 24</div>
     <div id="ammoPips"></div>
     <div class="bar" id="reloadBar"><i></i></div>
@@ -274,6 +308,7 @@
   <div id="warning" hidden>Cho‘chqa hujum qilmoqda!</div>
 </div>
 
+<div id="binoculars" hidden></div>
 <div id="vignette"></div>
 
 <!-- Bosh menyu -->
@@ -291,10 +326,14 @@
       <dt><kbd>R</kbd></dt><dd>Qayta o‘qlash</dd>
       <dt><kbd>Shift</kbd></dt><dd>Yugurish</dd>
       <dt><kbd>C</kbd></dt><dd>Egilish</dd>
+      <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Qurol almashtirish</dd>
+      <dt><kbd>B</kbd></dt><dd>Durbin</dd>
+      <dt><kbd>H</kbd></dt><dd>Dori ichish</dd>
       <dt><kbd>M</kbd></dt><dd>Ovozni o‘chirish</dd>
     </dl>
     <div class="actions">
       <button class="primary" id="startBtn" disabled>Yuklanmoqda…</button>
+      <button class="secondary" data-open-shop>Do‘kon</button>
       <button class="secondary" data-open-settings>Sozlamalar</button>
     </div>
     <p id="loadError" hidden>O‘yinni yuklab bo‘lmadi. Internet aloqasini va brauzerda WebGL yoqilganini tekshirib, sahifani yangilang.</p>
@@ -321,7 +360,10 @@
     <p id="finalScore">0</p>
     <p id="finalBest"></p>
     <table id="finalTable"></table>
-    <button class="primary" id="againBtn">Qayta o‘ynash</button>
+    <div class="actions">
+      <button class="primary" id="againBtn">Qayta o‘ynash</button>
+      <button class="secondary" data-open-shop>Do‘kon</button>
+    </div>
   </div>
 </section>
 
@@ -342,6 +384,16 @@
       <div class="segmented" id="qualityButtons"></div>
     </div>
     <button class="primary" id="settingsCloseBtn">Tayyor</button>
+  </div>
+</section>
+
+<!-- Do'kon -->
+<section class="screen" id="shop" hidden>
+  <div class="card wide">
+    <h2>Do‘kon</h2>
+    <p id="shopCoins"></p>
+    <ul id="shopList"></ul>
+    <button class="primary" id="shopCloseBtn">Yopish</button>
   </div>
 </section>
 
@@ -378,16 +430,8 @@ const CONFIG = {
     maxHp: 100,
     lookSensitivity: 0.0022,
   },
-  weapon: {
-    magazine: 6,
-    reserve: 24,           // raund boshidagi zaxira o'qlar
-    fireDelay: 0.55,       // ikki o'q orasidagi vaqt (soniya)
-    reloadTime: 1.8,
-    range: 220,
-    hipSpread: 0.012,      // mo'ljalga olmasdan otganda tarqalish
-    alarmRadius: 40,       // o'q ovozi shu masofadagi hayvonlarni cho'chitadi
-  },
-  fov: { normal: 75, aiming: 42 },
+  fov: { normal: 75, aiming: 42, binoculars: 15 },
+  medkitHeal: 40,
 };
 
 // Grafika sifati darajalari: kuchsiz kompyuterlar uchun soya va o't kamaytiriladi
@@ -405,6 +449,9 @@ const QUALITY = {
 const PROFILE_KEY = 'ormondagi-ovchi-profil';
 const DEFAULT_PROFILE = {
   best: 0,
+  coins: 0,
+  owned: [],    // sotib olingan jihozlar
+  medkits: 0,
   settings: { sensitivity: 1, volume: 0.8, quality: 'high' },
 };
 
@@ -427,6 +474,7 @@ function saveProfile() {
 }
 
 const profile = loadProfile();
+const owns = (itemId) => profile.owned.includes(itemId);
 
 /* ==========================================================================
    2. YORDAMCHI FUNKSIYALAR
@@ -626,7 +674,8 @@ camera.rotation.order = 'YXZ';
 const weaponScene = new THREE.Scene();
 const weaponCamera = new THREE.PerspectiveCamera(50, 1, 0.01, 10);
 
-scene.add(new THREE.HemisphereLight('#d7e8ff', '#5a6b35', 1.5));
+const skyLight = new THREE.HemisphereLight('#d7e8ff', '#5a6b35', 1.5);
+scene.add(skyLight);
 
 const sun = new THREE.DirectionalLight('#ffe6bd', 2.9);
 sun.castShadow = true;
@@ -635,10 +684,44 @@ sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.04;
 scene.add(sun, sun.target);
 
-weaponScene.add(new THREE.HemisphereLight('#d7e8ff', '#5a6b35', 1.6));
+const weaponSkyLight = new THREE.HemisphereLight('#d7e8ff', '#5a6b35', 1.6);
+weaponScene.add(weaponSkyLight);
 const weaponSun = new THREE.DirectionalLight('#ffe6bd', 2.2);
 weaponSun.position.set(1, 2, 1);
 weaponScene.add(weaponSun);
+
+/* --------------------------------------------------------------------------
+   Vaqt va ob-havo: har raund boshida tasodifiy tanlanadi.
+   noise: o'yinchi ovozi qanchalik eshitiladi, predatorSense: yirtqichlar sezgirligi.
+   -------------------------------------------------------------------------- */
+
+const CONDITIONS = {
+  day: { name: 'Kunduz', sky: '#5c9bd6', horizon: '#cfe0d6', sunColor: '#ffe6bd', sunPower: 2.9, ambient: 1.5, fog: 0.0105, sun: [0.55, 0.72, 0.42], clouds: 0.46 },
+  dawn: { name: 'Tong', sky: '#7d9ccb', horizon: '#f2d2b0', sunColor: '#ffc898', sunPower: 2.3, ambient: 1.15, fog: 0.014, sun: [0.8, 0.26, 0.35], clouds: 0.5 },
+  dusk: { name: 'Oqshom', sky: '#3c5283', horizon: '#e89c6c', sunColor: '#ffa060', sunPower: 2, ambient: 0.85, fog: 0.013, sun: [-0.8, 0.2, 0.3], clouds: 0.5, predatorSense: 1.3 },
+  mist: { name: 'Qalin tuman', sky: '#a9b8b4', horizon: '#c5cfc8', sunColor: '#e8e4d4', sunPower: 1.2, ambient: 1.55, fog: 0.03, sun: [0.4, 0.8, 0.3], clouds: 0.3 },
+  rain: { name: 'Yomg‘ir', sky: '#6c7981', horizon: '#9ba7a7', sunColor: '#cfd6da', sunPower: 0.9, ambient: 1.3, fog: 0.018, sun: [0.3, 0.85, 0.2], clouds: 0.12, noise: 0.7, rain: true },
+};
+
+let conditions = CONDITIONS.day;
+
+function applyConditions(next) {
+  conditions = next;
+  SKY_COLOR.set(next.sky);
+  HORIZON_COLOR.set(next.horizon);
+  SUN_DIRECTION.set(...next.sun).normalize();
+  scene.fog.color.copy(HORIZON_COLOR);
+  scene.fog.density = next.fog;
+  renderer.setClearColor(HORIZON_COLOR);
+  sun.color.set(next.sunColor);
+  sun.intensity = next.sunPower;
+  skyLight.intensity = next.ambient;
+  weaponSun.color.set(next.sunColor);
+  weaponSun.intensity = next.sunPower * 0.76;
+  weaponSkyLight.intensity = next.ambient * 1.07;
+  skyMaterial.uniforms.cloudLevel.value = next.clouds;
+  skyMaterial.uniforms.sunGlow.value = next.sunPower / 2.9;
+}
 
 /** Soya kamerasi o'yinchi bilan birga yuradi. Sakrashli qadam soya titrashini kamaytiradi. */
 function updateSun(focus) {
@@ -658,6 +741,8 @@ const skyMaterial = new THREE.ShaderMaterial({
     horizonColor: { value: HORIZON_COLOR },
     sunDirection: { value: SUN_DIRECTION },
     time: { value: 0 },
+    cloudLevel: { value: 0.46 }, // qanchalik past bo'lsa, osmonni shunchalik ko'p bulut qoplaydi
+    sunGlow: { value: 1 },
   },
   vertexShader: /* glsl */ `
     varying vec3 vDirection;
@@ -667,7 +752,7 @@ const skyMaterial = new THREE.ShaderMaterial({
     }`,
   fragmentShader: /* glsl */ `
     uniform vec3 topColor, horizonColor, sunDirection;
-    uniform float time;
+    uniform float time, cloudLevel, sunGlow;
     varying vec3 vDirection;
 
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -688,11 +773,11 @@ const skyMaterial = new THREE.ShaderMaterial({
       vec3 color = mix(horizonColor, topColor, pow(clamp(dir.y, 0.0, 1.0), 0.55));
 
       float sunAmount = max(dot(dir, sunDirection), 0.0);
-      color += vec3(1.0, 0.9, 0.7) * (pow(sunAmount, 900.0) * 5.0 + pow(sunAmount, 20.0) * 0.22);
+      color += vec3(1.0, 0.9, 0.7) * (pow(sunAmount, 900.0) * 5.0 + pow(sunAmount, 20.0) * 0.22) * sunGlow;
 
       if (dir.y > 0.0) {
         vec2 uv = dir.xz / (dir.y + 0.14) * 1.2 + time * 0.012;
-        float cover = smoothstep(0.46, 0.74, clouds(uv)) * smoothstep(0.02, 0.22, dir.y);
+        float cover = smoothstep(cloudLevel, cloudLevel + 0.28, clouds(uv)) * smoothstep(0.02, 0.22, dir.y);
         color = mix(color, vec3(1.0, 0.98, 0.94), cover * 0.9);
       }
 
@@ -1921,7 +2006,8 @@ class Animal {
 
   /** Hayvon o'yinchini qaysi masofadan sezadi: shovqin, shamol va ko'rish chizig'iga bog'liq. */
   senseDistance(dt, distance) {
-    const reach = this.spec.senseRange * player.noise * windSenseFactor(this.pos);
+    const alertness = this.spec.aggressive ? conditions.predatorSense ?? 1 : 1;
+    const reach = this.spec.senseRange * player.noise * windSenseFactor(this.pos) * alertness;
     this.sightClock -= dt;
     if (this.sightClock <= 0 && distance < reach * 1.5) {
       this.sightClock = 0.4;
@@ -1974,8 +2060,8 @@ class Animal {
   }
 
   /** @returns {boolean} hayvon shu o'qdan o'ldimi */
-  takeHit(part) {
-    this.hp -= part === 'head' ? this.spec.headDamage : 1;
+  takeHit(part, power = 1) {
+    this.hp -= (part === 'head' ? this.spec.headDamage : 1) * power;
     if (this.hp <= 0) {
       this.setState('dead');
       this.fallSide = pick([-1, 1]);
@@ -2525,12 +2611,14 @@ const player = {
   recoil: 0,     // o'q uzgandagi kamera ko'tarilishi
   shake: 0,      // zarar olgandagi kamera titrashi
   aim: 0,        // 0 = oddiy, 1 = to'liq mo'ljalga olingan
+  scope: 0,      // 0 = oddiy, 1 = durbindan qaralmoqda
 };
 
 const input = {
   keys: {},
   fire: false,
   aiming: false,
+  scoping: false,
   lookX: 0,      // shu kadrdagi sichqoncha siljishi (miltiq tebranishi uchun)
   lookY: 0,
   edgeTurn: 0,   // erkin sichqoncha rejimida kursor ekran chetida bo'lsa: -1..1
@@ -2590,7 +2678,9 @@ function updatePlayer(dt) {
   player.noise = (!moving ? 0.55 : sprinting ? 1.5 : aiming ? 0.7 : 1)
     * (player.crouching ? 0.5 : 1)
     * (hidden ? 0.6 : 1)
-    * (moving && wading > 0.05 ? 1.3 : 1);
+    * (moving && wading > 0.05 ? 1.3 : 1)
+    * (conditions.noise ?? 1)
+    * (owns('camo') ? 0.8 : 1);
   updateFieldHud(hidden);
 
   // Qadam va bosh tebranishi
@@ -2605,7 +2695,8 @@ function updatePlayer(dt) {
 
   // Mo'ljalga olish: ko'rish burchagi torayadi
   player.aim = damp(player.aim, aiming ? 1 : 0, 12, dt);
-  const fov = lerp(CONFIG.fov.normal, CONFIG.fov.aiming, player.aim);
+  player.scope = damp(player.scope, input.scoping ? 1 : 0, 12, dt);
+  const fov = lerp(lerp(CONFIG.fov.normal, CONFIG.fov.aiming, player.aim), CONFIG.fov.binoculars, player.scope);
   if (Math.abs(fov - camera.fov) > 0.01) {
     camera.fov = fov;
     camera.updateProjectionMatrix();
@@ -2656,22 +2747,47 @@ function damagePlayer(amount, attacker) {
 }
 
 /* ==========================================================================
-   11. MILTIQ VA OTISH
+   11. QUROLLAR VA OTISH
    ========================================================================== */
 
+const position3 = (x, y, z) => new THREE.Vector3(x, y, z);
+
+const WEAPONS = {
+  rifle: {
+    name: 'Miltiq', magazine: 6, reserve: 24, fireDelay: 0.55, reloadTime: 1.8, range: 220,
+    spread: 0.012, alarmRadius: 40, recoil: 0.035, kick: 1, sound: 'gunshot',
+    hip: position3(0.27, -0.25, -0.5), aim: position3(0, -0.082, -0.62), muzzle: [0, 0.04, -0.95],
+  },
+  // Sochma o'q: bir nechta mayda o'q sochiladi, yaqinda hammasi tegib, kuchli zarba beradi
+  shotgun: {
+    name: 'Ov miltig‘i', magazine: 2, reserve: 16, fireDelay: 0.4, reloadTime: 1.5, range: 75,
+    spread: 0.05, aimSpread: 0.028, pellets: 9, alarmRadius: 55, recoil: 0.06, kick: 1.4, sound: 'shotgunBlast',
+    hip: position3(0.27, -0.25, -0.46), aim: position3(0, -0.066, -0.58), muzzle: [0, 0.04, -0.74],
+  },
+  // Kamon ovoz chiqarmaydi, lekin o'q uchib boradi va uzoqda pastga tushadi
+  bow: {
+    name: 'Kamon', magazine: 1, reserve: 20, fireDelay: 0.1, reloadTime: 0.85, range: 140,
+    spread: 0.006, alarmRadius: 0, recoil: 0.004, kick: 0.4, sound: 'bowRelease', arrowSpeed: 60,
+    hip: position3(0.24, -0.1, -0.82), aim: position3(0.035, 0.005, -0.72), muzzle: null,
+  },
+};
+
 const weapon = {
-  ammo: CONFIG.weapon.magazine,
-  reserve: CONFIG.weapon.reserve,
+  current: 'rifle',
+  slots: {},       // har bir qurolning o'z o'qi: { ammo, reserve }
   cooldown: 0,
   reloadLeft: 0,
   kick: 0,
   flashLeft: 0,
   swayX: 0,
   swayY: 0,
+  swapLift: 0,     // qurol almashganda pastdan ko'tariladi
+  get gun() { return WEAPONS[this.current]; },
+  get ammo() { return this.slots[this.current].ammo; },
+  set ammo(value) { this.slots[this.current].ammo = value; },
+  get reserve() { return this.slots[this.current].reserve; },
+  set reserve(value) { this.slots[this.current].reserve = value; },
 };
-
-const HIP_POSITION = new THREE.Vector3(0.27, -0.25, -0.5);
-const AIM_POSITION = new THREE.Vector3(0, -0.082, -0.62);
 
 /** Miltiq va uni ushlab turgan qo'llar (-Z tomonga qaraydi). */
 function rifleGeometry() {
@@ -2695,11 +2811,69 @@ function rifleGeometry() {
   );
 }
 
-const rifle = new THREE.Group();
-const rifleMesh = new THREE.Mesh(rifleGeometry(), lowPolyMaterial);
-rifle.add(rifleMesh);
-rifle.visible = false;
-weaponScene.add(rifle);
+/** Ikki stvolli ov miltig'i. */
+function shotgunGeometry() {
+  const wood = '#8a5a34', woodDark = '#5e3b22', metal = '#33353a', steel = '#54575e';
+  const sleeve = '#4b5a38', glove = '#3a2b20';
+  return merge(
+    box(0.058, 0.1, 0.32, wood, [0, -0.045, 0.28]),
+    box(0.064, 0.15, 0.1, woodDark, [0, -0.07, 0.47]),
+    box(0.064, 0.085, 0.2, steel, [0, 0.008, 0.02]),
+    box(0.058, 0.06, 0.28, wood, [0, -0.016, -0.2]),
+    cylinder(0.017, 0.018, 0.62, metal, [-0.017, 0.04, -0.4], [Math.PI / 2, 0, 0], 8),
+    cylinder(0.017, 0.018, 0.62, metal, [0.017, 0.04, -0.4], [Math.PI / 2, 0, 0], 8),
+    box(0.01, 0.012, 0.02, steel, [0, 0.064, -0.68]),
+    box(0.09, 0.05, 0.12, glove, [0, -0.05, -0.2]),
+    cylinder(0.05, 0.06, 0.6, sleeve, [-0.14, -0.26, -0.03], [-0.85, 0, 0.5]),
+    box(0.08, 0.08, 0.09, glove, [0.015, -0.08, 0.16]),
+    cylinder(0.05, 0.06, 0.5, sleeve, [0.09, -0.28, 0.32], [-0.5, 0, -0.3]),
+  );
+}
+
+/** Kamon: egilgan yelkalar, tortilgan ip va uni ushlab turgan qo'l. */
+function bowGeometry() {
+  const wood = '#6d4426', grip = '#2d2019', cord = '#e6dfca', sleeve = '#4b5a38', glove = '#3a2b20';
+  const stringTop = [0, 0.3, 0.2], stringBottom = [0, -0.3, 0.2];
+  return merge(
+    limb([
+      [-0.58, 0.2, 0.012, 0.02], [-0.4, 0.03, 0.018, 0.03], [-0.12, -0.05, 0.022, 0.04],
+      [0.12, -0.05, 0.022, 0.04], [0.4, 0.03, 0.018, 0.03], [0.58, 0.2, 0.012, 0.02],
+    ], { top: wood, steps: 4, mottle: 0.02 }),
+    cylinder(0.03, 0.03, 0.14, grip, [0, 0, -0.05], [0, 0, 0], 8),
+    cylinder(0.004, 0.004, 0.62, cord, stringTop, [0.28, 0, 0], 4),
+    cylinder(0.004, 0.004, 0.62, cord, stringBottom, [-0.28, 0, 0], 4),
+    box(0.075, 0.09, 0.08, glove, [0, 0, -0.05]),
+    cylinder(0.05, 0.06, 0.8, sleeve, [-0.1, -0.26, 0.22], [-0.87, 0, -0.25]),
+  );
+}
+
+/** O'q (kamon uchun): uchi +Z tomonga qaraydi. */
+function arrowGeometry() {
+  return merge(
+    cylinder(0.006, 0.006, 0.7, '#c8b48c', [0, 0, 0], [Math.PI / 2, 0, 0], 5),
+    cone(0.014, 0.05, '#55585e', [0, 0, 0.37], [Math.PI / 2, 0, 0], 5),
+    box(0.002, 0.04, 0.09, '#b23a2a', [0, 0, -0.3]),
+    box(0.04, 0.002, 0.09, '#b23a2a', [0, 0, -0.3]),
+  );
+}
+
+// Qurollar bitta guruh ichida: guruh qo'l harakatini beradi, ichida faqat tanlangani ko'rinadi
+const viewModel = new THREE.Group();
+viewModel.visible = false;
+weaponScene.add(viewModel);
+
+const weaponMeshes = {};
+for (const [id, geometry] of Object.entries({ rifle: rifleGeometry(), shotgun: shotgunGeometry(), bow: bowGeometry() })) {
+  weaponMeshes[id] = new THREE.Mesh(geometry, lowPolyMaterial);
+  weaponMeshes[id].visible = false;
+  viewModel.add(weaponMeshes[id]);
+}
+
+const arrowShape = arrowGeometry();
+const nockedArrow = new THREE.Mesh(arrowShape, lowPolyMaterial);
+nockedArrow.position.set(0, 0, 0.02);
+nockedArrow.rotation.y = Math.PI; // kamonda uchi oldinga (-Z) qaraydi
+weaponMeshes.bow.add(nockedArrow);
 
 /** Yumaloq yorug'lik dog'i: og'iz olovi uchun kod bilan chiziladi. */
 function createFlashTexture() {
@@ -2721,13 +2895,39 @@ const muzzleFlash = new THREE.Sprite(new THREE.SpriteMaterial({
   depthWrite: false,
   toneMapped: false,
 }));
-muzzleFlash.position.set(0, 0.04, -0.95);
 muzzleFlash.visible = false;
-rifle.add(muzzleFlash);
+viewModel.add(muzzleFlash);
 
 // O'q uzganda atrofni bir lahza yoritadi. Doim sahnada turadi, aks holda shader qayta kompilyatsiya bo'ladi.
 const muzzleLight = new THREE.PointLight('#ffc27a', 0, 28, 2);
 scene.add(muzzleLight);
+
+/** Raund boshida har bir qurol o'qlar bilan to'ldiriladi. */
+function stockWeapons() {
+  const pouch = owns('ammoPouch') ? 1.5 : 1;
+  weapon.slots = Object.fromEntries(Object.entries(WEAPONS).map(([id, gun]) => (
+    [id, { ammo: gun.magazine, reserve: Math.round(gun.reserve * pouch) }]
+  )));
+  equipWeapon('rifle');
+}
+
+function equipWeapon(id) {
+  weapon.current = id;
+  weapon.reloadLeft = 0;
+  weapon.cooldown = 0.25;
+  weapon.swapLift = 1;
+  ui.reloadBar.classList.remove('active');
+  for (const [meshId, mesh] of Object.entries(weaponMeshes)) mesh.visible = meshId === id;
+  if (weapon.gun.muzzle) muzzleFlash.position.set(...weapon.gun.muzzle);
+  updateAmmoHud();
+}
+
+/** 1, 2, 3 tugmalari: faqat sotib olingan qurolga o'tadi. */
+function trySwitchWeapon(id) {
+  if (id === weapon.current || (id !== 'rifle' && !owns(id))) return;
+  sound.dryFire();
+  equipWeapon(id);
+}
 
 const raycaster = new THREE.Raycaster();
 
@@ -2763,15 +2963,61 @@ function rayToObstacle(origin, direction, maxDistance) {
   return nearest;
 }
 
+const liveHitBoxes = () => animals.filter((a) => a.alive && a.root.visible).flatMap((a) => a.hitBoxes);
+
+/** Tarqalish: yo'nalishga kichik tasodifiy og'ish qo'shadi. */
+function scatterDirection(direction, spread) {
+  return direction.clone().add(position3(randRange(-spread, spread), randRange(-spread, spread), randRange(-spread, spread))).normalize();
+}
+
+/** Daraxt, yer yoki suvga tekkan o'q izi. */
+function showImpact(point, hitsTree) {
+  const hitsWater = !hitsTree && point.y < WATER_LEVEL + 0.5 && waterDepth(point.x, point.z) > 0;
+  if (hitsWater) {
+    point.y = WATER_LEVEL;
+    burst(point, '#dcebf0', 14, 3);
+    sound.splash();
+  } else {
+    burst(point, hitsTree ? '#6b4a2e' : '#6f6a45', 8, 2.5);
+  }
+}
+
+/** Hayvonga tekkan zarba. */
+function registerHit(animal, part, power, point) {
+  burst(point, '#7a1f14', 12, 3.5);
+  sound.impact();
+  ui.hitMarker.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220 });
+  if (animal.takeHit(part, power)) onAnimalKilled(animal, part === 'head');
+}
+
+/** Bitta o'q yo'lini kuzatadi. Hayvonga tekkan bo'lsa, natija struck ro'yxatiga yoziladi. */
+function traceShot(origin, direction, range, targets, struck) {
+  const obstacleAt = rayToObstacle(origin, direction, range);
+  const groundAt = rayToGround(origin, direction, range);
+  raycaster.set(origin, direction);
+  raycaster.far = Math.min(range, obstacleAt, groundAt);
+  const [hit] = raycaster.intersectObjects(targets, false);
+
+  if (hit) {
+    const { animal, part } = hit.object.userData;
+    const record = struck.get(animal) ?? { count: 0, part: 'body', point: hit.point };
+    record.count++;
+    if (part === 'head') record.part = 'head';
+    struck.set(animal, record);
+  } else if (Math.min(obstacleAt, groundAt) < range) {
+    showImpact(origin.clone().addScaledVector(direction, Math.min(obstacleAt, groundAt)), obstacleAt < groundAt);
+  }
+}
+
 function fire() {
-  const cfg = CONFIG.weapon;
+  const { gun } = weapon;
   weapon.ammo--;
-  weapon.cooldown = cfg.fireDelay;
-  weapon.kick = 1;
-  weapon.flashLeft = 0.05;
-  player.recoil += lerp(0.035, 0.022, player.aim);
+  weapon.cooldown = gun.fireDelay;
+  weapon.kick = gun.kick;
+  weapon.flashLeft = gun.muzzle ? 0.05 : 0;
+  player.recoil += gun.recoil * lerp(1, 0.62, player.aim);
   game.shots++;
-  sound.gunshot();
+  sound[gun.sound]();
   updateAmmoHud();
 
   // O'q yo'nalishi: mo'ljalga olinmagan bo'lsa va yurib otsa, tarqalish kattaroq
@@ -2779,59 +3025,117 @@ function fire() {
   const origin = camera.position.clone();
   const direction = camera.getWorldDirection(new THREE.Vector3());
   const moveFactor = 1 + Math.hypot(player.velocity.x, player.velocity.z) / CONFIG.player.walkSpeed;
-  const spread = cfg.hipSpread * moveFactor * (1 - player.aim);
-  direction.x += randRange(-spread, spread);
-  direction.y += randRange(-spread, spread);
-  direction.z += randRange(-spread, spread);
-  direction.normalize();
+  const spread = lerp(gun.spread * moveFactor, gun.aimSpread ?? 0, player.aim);
 
-  // Eng yaqin to'siqni topamiz: daraxt, yer yoki hayvon
-  const obstacleAt = rayToObstacle(origin, direction, cfg.range);
-  const groundAt = rayToGround(origin, direction, cfg.range);
-  raycaster.set(origin, direction);
-  raycaster.far = Math.min(cfg.range, obstacleAt, groundAt);
-  const targets = animals.filter((a) => a.alive && a.root.visible).flatMap((a) => a.hitBoxes);
-  const [hit] = raycaster.intersectObjects(targets, false);
+  if (gun.arrowSpeed) {
+    launchArrow(origin, scatterDirection(direction, spread), gun.arrowSpeed);
+    return;
+  }
 
-  if (hit) {
-    const { animal, part } = hit.object.userData;
-    game.hits++;
-    burst(hit.point, '#7a1f14', 12, 3.5);
-    sound.impact();
-    ui.hitMarker.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220 });
-    if (animal.takeHit(part)) onAnimalKilled(animal, part === 'head');
-  } else if (Math.min(obstacleAt, groundAt) < cfg.range) {
-    const hitsTree = obstacleAt < groundAt;
-    const point = origin.clone().addScaledVector(direction, Math.min(obstacleAt, groundAt));
-    const hitsWater = !hitsTree && point.y < WATER_LEVEL + 0.5 && waterDepth(point.x, point.z) > 0;
-    if (hitsWater) {
-      point.y = WATER_LEVEL;
-      burst(point, '#dcebf0', 14, 3);
-      sound.splash();
-    } else {
-      burst(point, hitsTree ? '#6b4a2e' : '#6f6a45', 8, 2.5);
-    }
+  const targets = liveHitBoxes();
+  const struck = new Map();
+  for (let pellet = 0; pellet < (gun.pellets ?? 1); pellet++) {
+    traceShot(origin, scatterDirection(direction, spread), gun.range, targets, struck);
+  }
+  if (struck.size) game.hits++;
+  // Sochma o'qda har uchta tekkan mayda o'q bir zarbaga teng
+  for (const [animal, { count, part, point }] of struck) {
+    registerHit(animal, part, Math.max(1, Math.round(count / 3)), point);
   }
 
   // O'q ovozi atrofdagi hayvonlarni cho'chitadi
   for (const animal of animals) {
-    if (animal.alive && animal.root.visible && animal.distanceToPlayer() < cfg.alarmRadius) animal.startle();
+    if (animal.alive && animal.root.visible && animal.distanceToPlayer() < gun.alarmRadius) animal.startle();
+  }
+}
+
+/* Kamon o'qlari: sekin uchadi, shuning uchun har kadrda yo'lini tekshiramiz */
+
+const ARROW_GRAVITY = 9;
+const arrows = Array.from({ length: 8 }, () => {
+  const mesh = new THREE.Mesh(arrowShape, lowPolyMaterial);
+  mesh.visible = false;
+  scene.add(mesh);
+  return { mesh, velocity: new THREE.Vector3(), flying: false, stuckFor: 0 };
+});
+
+function launchArrow(origin, direction, speed) {
+  const arrow = arrows.find((candidate) => !candidate.flying && !candidate.mesh.visible) ?? arrows[0];
+  arrow.mesh.position.copy(origin).addScaledVector(direction, 0.5);
+  arrow.velocity.copy(direction).multiplyScalar(speed);
+  arrow.flying = true;
+  arrow.mesh.visible = true;
+}
+
+function stopArrow(arrow, stayFor) {
+  arrow.flying = false;
+  arrow.stuckFor = stayFor;
+  arrow.mesh.visible = stayFor > 0;
+}
+
+function updateArrows(dt) {
+  const direction = new THREE.Vector3();
+  const lookTarget = new THREE.Vector3();
+  for (const arrow of arrows) {
+    if (!arrow.mesh.visible) continue;
+    if (!arrow.flying) {
+      arrow.stuckFor -= dt;
+      if (arrow.stuckFor <= 0) arrow.mesh.visible = false;
+      continue;
+    }
+
+    const { position } = arrow.mesh;
+    arrow.velocity.y -= ARROW_GRAVITY * dt;
+    const step = arrow.velocity.length() * dt;
+    direction.copy(arrow.velocity).normalize();
+
+    // Shu kadrda bosib o'tiladigan kesmada biror narsa bormi
+    const obstacleAt = rayToObstacle(position, direction, step);
+    raycaster.set(position, direction);
+    raycaster.far = Math.min(step, obstacleAt);
+    const [hit] = raycaster.intersectObjects(liveHitBoxes(), false);
+
+    if (hit) {
+      const { animal, part } = hit.object.userData;
+      game.hits++;
+      registerHit(animal, part, 1, hit.point);
+      stopArrow(arrow, 0);
+      continue;
+    }
+
+    position.addScaledVector(direction, Math.min(step, obstacleAt));
+    lookTarget.copy(position).add(arrow.velocity);
+    arrow.mesh.lookAt(lookTarget);
+
+    const groundLevel = Math.max(terrainHeight(position.x, position.z), WATER_LEVEL);
+    if (obstacleAt < step) {
+      showImpact(position.clone(), true);
+      stopArrow(arrow, 8);
+    } else if (position.y < groundLevel) {
+      position.y = groundLevel;
+      showImpact(position.clone(), false);
+      stopArrow(arrow, position.y > WATER_LEVEL ? 8 : 0);
+    } else if (position.distanceTo(player.pos) > weapon.gun.range + 60) {
+      stopArrow(arrow, 0);
+    }
   }
 }
 
 function startReload() {
-  if (weapon.reloadLeft > 0 || weapon.ammo === CONFIG.weapon.magazine || weapon.reserve === 0) return;
-  weapon.reloadLeft = CONFIG.weapon.reloadTime;
+  const { gun } = weapon;
+  if (weapon.reloadLeft > 0 || weapon.ammo === gun.magazine || weapon.reserve === 0) return;
+  weapon.reloadLeft = gun.reloadTime;
   ui.reloadBar.classList.add('active');
-  sound.reload();
+  sound.reload(gun.reloadTime);
 }
 
 function updateWeapon(dt) {
+  const { gun } = weapon;
   weapon.cooldown = Math.max(0, weapon.cooldown - dt);
 
   if (input.fire) {
     input.fire = false;
-    if (weapon.reloadLeft <= 0 && weapon.cooldown <= 0) {
+    if (weapon.reloadLeft <= 0 && weapon.cooldown <= 0 && !input.scoping) {
       if (weapon.ammo > 0) fire();
       else sound.dryFire();
     }
@@ -2840,11 +3144,11 @@ function updateWeapon(dt) {
   let reloadLift = 0;
   if (weapon.reloadLeft > 0) {
     weapon.reloadLeft -= dt;
-    const progress = 1 - Math.max(weapon.reloadLeft, 0) / CONFIG.weapon.reloadTime;
+    const progress = 1 - Math.max(weapon.reloadLeft, 0) / gun.reloadTime;
     ui.reloadFill.style.transform = `scaleX(${progress})`;
     reloadLift = Math.sin(progress * Math.PI);
     if (weapon.reloadLeft <= 0) {
-      const taken = Math.min(CONFIG.weapon.magazine - weapon.ammo, weapon.reserve);
+      const taken = Math.min(gun.magazine - weapon.ammo, weapon.reserve);
       weapon.ammo += taken;
       weapon.reserve -= taken;
       ui.reloadBar.classList.remove('active');
@@ -2852,18 +3156,22 @@ function updateWeapon(dt) {
     }
   }
 
-  // Miltiq holati: mo'ljal, sichqonchaga kechikib ergashish, tepki va qadam tebranishi
+  // Qurol holati: mo'ljal, sichqonchaga kechikib ergashish, tepki va qadam tebranishi
   weapon.kick = damp(weapon.kick, 0, 11, dt);
+  weapon.swapLift = damp(weapon.swapLift, 0, 9, dt);
   weapon.swayX = damp(weapon.swayX, clamp(-input.lookX * 0.0006, -0.04, 0.04), 9, dt);
   weapon.swayY = damp(weapon.swayY, clamp(input.lookY * 0.0006, -0.04, 0.04), 9, dt);
   input.lookX = input.lookY = 0;
 
   const relaxed = 1 - player.aim;
-  rifle.position.lerpVectors(HIP_POSITION, AIM_POSITION, player.aim);
-  rifle.position.x += weapon.swayX * relaxed + Math.cos(player.stepPhase) * 0.008 * relaxed;
-  rifle.position.y += weapon.swayY * relaxed - Math.abs(Math.sin(player.stepPhase)) * 0.01 * relaxed - reloadLift * 0.2;
-  rifle.position.z += weapon.kick * 0.11;
-  rifle.rotation.set(weapon.kick * 0.09 + reloadLift * 0.7, relaxed * 0.05, reloadLift * 0.5);
+  viewModel.position.lerpVectors(gun.hip, gun.aim, player.aim);
+  viewModel.position.x += weapon.swayX * relaxed + Math.cos(player.stepPhase) * 0.008 * relaxed;
+  viewModel.position.y += weapon.swayY * relaxed - Math.abs(Math.sin(player.stepPhase)) * 0.01 * relaxed
+    - reloadLift * 0.2 - weapon.swapLift * 0.35 - player.scope * 0.5;
+  viewModel.position.z += weapon.kick * 0.11;
+  viewModel.rotation.set(weapon.kick * 0.09 + reloadLift * 0.7, relaxed * 0.05, reloadLift * 0.5);
+  if (weapon.current === 'bow') viewModel.rotation.z += relaxed * -0.32;
+  nockedArrow.visible = weapon.ammo > 0;
 
   weapon.flashLeft -= dt;
   const flashing = weapon.flashLeft > 0;
@@ -2953,6 +3261,43 @@ function updateMotes(dt, time) {
     motePositions[i + 2] = wrap(motePositions[i + 2], origin.z);
   }
   motes.geometry.attributes.position.needsUpdate = true;
+}
+
+// Yomg'ir: o'yinchi atrofida aylanib yuruvchi ingichka chiziqlar
+const RAIN_DROPS = 800;
+const RAIN_BOX = 44;
+const rainPositions = new Float32Array(RAIN_DROPS * 6);
+const rain = new THREE.LineSegments(
+  new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(rainPositions, 3)),
+  new THREE.LineBasicMaterial({ color: '#e2ecf0', transparent: true, opacity: 0.6 }),
+);
+rain.frustumCulled = false;
+rain.visible = false;
+scene.add(rain);
+for (let i = 0; i < rainPositions.length; i += 6) {
+  rainPositions[i] = randRange(0, RAIN_BOX);
+  rainPositions[i + 1] = randRange(0, RAIN_BOX);
+  rainPositions[i + 2] = randRange(0, RAIN_BOX);
+}
+
+function updateRain(dt) {
+  rain.visible = Boolean(conditions.rain);
+  if (!rain.visible) return;
+  const origin = camera.position, half = RAIN_BOX / 2;
+  const wrap = (value, center) => ((value - center + half) % RAIN_BOX + RAIN_BOX) % RAIN_BOX - half + center;
+  const driftX = Math.sin(wind.angle) * 3, driftZ = Math.cos(wind.angle) * 3;
+  for (let i = 0; i < rainPositions.length; i += 6) {
+    const x = wrap(rainPositions[i] + driftX * dt, origin.x);
+    const y = wrap(rainPositions[i + 1] - 26 * dt, origin.y + 6);
+    const z = wrap(rainPositions[i + 2] + driftZ * dt, origin.z);
+    rainPositions[i] = x;
+    rainPositions[i + 1] = y;
+    rainPositions[i + 2] = z;
+    rainPositions[i + 3] = x - driftX * 0.03;
+    rainPositions[i + 4] = y + 0.8;
+    rainPositions[i + 5] = z - driftZ * 0.03;
+  }
+  rain.geometry.attributes.position.needsUpdate = true;
 }
 
 /* --------------------------------------------------------------------------
@@ -3152,11 +3497,20 @@ const sound = {
     gain?.connect(this.echo);
     this.tone({ from: 130, to: 38, volume: 0.9, duration: 0.2 });
   },
+  shotgunBlast() {
+    const gain = this.noiseHit({ from: 2600, to: 160, volume: 1.2, duration: 0.42 });
+    gain?.connect(this.echo);
+    this.tone({ from: 100, to: 30, volume: 1, duration: 0.26 });
+  },
+  bowRelease() {
+    this.tone({ type: 'triangle', from: 220, to: 90, volume: 0.22, duration: 0.14 });
+    this.noiseHit({ type: 'highpass', from: 2800, to: 1400, volume: 0.14, duration: 0.12 });
+  },
   dryFire() {
     this.noiseHit({ type: 'highpass', from: 3000, volume: 0.25, duration: 0.03 });
   },
-  reload() {
-    const clicks = [0.15, 0.85, 1.05, 1.55];
+  reload(duration) {
+    const clicks = [0.08, 0.47, 0.58, 0.86].map((share) => share * duration);
     clicks.forEach((delay) => {
       this.noiseHit({ type: 'bandpass', from: 2400, volume: 0.6, duration: 0.05, delay });
       this.tone({ type: 'square', from: 900, to: 500, volume: 0.05, duration: 0.04, delay });
@@ -3224,6 +3578,13 @@ const sound = {
   tick() {
     this.tone({ type: 'square', from: 1100, volume: 0.05, duration: 0.05 });
   },
+  /** Mukofot ovozi: topshiriq bajarilganda. */
+  chime() {
+    [660, 880, 1100].forEach((from, i) => this.tone({ from, volume: 0.08, duration: 0.2, delay: i * 0.09 }));
+  },
+  heal() {
+    this.tone({ from: 420, to: 700, volume: 0.1, duration: 0.3 });
+  },
   horn() {
     this.tone({ type: 'sawtooth', from: 220, to: 210, volume: 0.22, duration: 0.7 });
     this.tone({ type: 'sawtooth', from: 330, to: 315, volume: 0.16, duration: 0.7, delay: 0.1 });
@@ -3249,6 +3610,22 @@ const sound = {
     source.connect(filter).connect(gain).connect(this.master);
     source.start();
     swell.start();
+
+    // Yomg'ir shovqini doim aylanib turadi, ovozi faqat yomg'irda ochiladi
+    const drizzle = context.createBufferSource();
+    drizzle.buffer = this.noise;
+    drizzle.loop = true;
+    const drizzleTone = context.createBiquadFilter();
+    drizzleTone.type = 'highpass';
+    drizzleTone.frequency.value = 1500;
+    this.rainGain = context.createGain();
+    this.rainGain.gain.value = 0;
+    drizzle.connect(drizzleTone).connect(this.rainGain).connect(this.master);
+    drizzle.start();
+  },
+
+  setRain(raining) {
+    if (this.rainGain) this.rainGain.gain.value = raining ? 0.09 : 0;
   },
 
   /** Vaqti-vaqti bilan uzoqdan qush sayraydi yoki bo'ri uvillaydi. */
@@ -3299,6 +3676,15 @@ const ui = {
   warning: byId('warning'),
   vignette: byId('vignette'),
   hitArc: byId('hitArc'),
+  weaponName: byId('weaponName'),
+  missionList: byId('missionList'),
+  conditionLine: byId('conditionLine'),
+  medkitLine: byId('medkitLine'),
+  binoculars: byId('binoculars'),
+  shop: byId('shop'),
+  shopCoins: byId('shopCoins'),
+  shopList: byId('shopList'),
+  shopCloseBtn: byId('shopCloseBtn'),
   windArrow: byId('windArrow'),
   noiseFill: document.querySelector('#noiseBar > i'),
   stanceLine: byId('stanceLine'),
@@ -3328,8 +3714,12 @@ function updateScoreHud() {
 }
 
 function updateAmmoHud() {
-  const { magazine } = CONFIG.weapon;
+  const { magazine, name } = weapon.gun;
+  ui.weaponName.textContent = name;
   ui.ammo.textContent = `${weapon.ammo} / ${weapon.reserve}`;
+  if (ui.ammoPips.children.length !== magazine) {
+    ui.ammoPips.replaceChildren(...Array.from({ length: magazine }, () => document.createElement('i')));
+  }
   [...ui.ammoPips.children].forEach((pip, index) => pip.classList.toggle('spent', index >= weapon.ammo));
 }
 
@@ -3344,6 +3734,20 @@ function updateHealthHud() {
   ui.hpFill.style.transform = `scaleX(${share})`;
   ui.hpBar.classList.toggle('low', player.hp <= 40);
   ui.vignette.style.opacity = lowHealthGlow();
+}
+
+function updateMissionHud() {
+  ui.missionList.replaceChildren(...game.missions.map((mission) => {
+    const item = document.createElement('li');
+    item.classList.toggle('done', mission.progress >= mission.goal);
+    item.append(mission.text, document.createElement('span'));
+    item.lastChild.textContent = `${mission.progress}/${mission.goal}`;
+    return item;
+  }));
+}
+
+function updateMedkitHud() {
+  ui.medkitLine.textContent = profile.medkits ? `Dori: ${profile.medkits} (H)` : '';
 }
 
 function updateTimeHud() {
@@ -3416,10 +3820,30 @@ function showPopup(text) {
 // "erkin" rejim yoqiladi: kursor ekran chetiga yetganda kamera o'zi buriladi.
 const pointer = { lockWorked: false, free: false };
 
+// Har bir tur uchun topshiriqda nechta ovlash kerakligi
+const MISSION_GOALS = { rabbit: 3, deer: 2, fox: 1, boar: 2, duck: 1, wolf: 2, bear: 1, fish: 1 };
+
+/** Raund uchun tasodifiy uchta topshiriq. */
+function createMissions() {
+  const pool = Object.entries(MISSION_GOALS).map(([kind, goal]) => ({
+    kind,
+    goal,
+    text: `${SPECIES[kind].name}: ${goal} ta ovlash`,
+    reward: Math.ceil((SPECIES[kind].points * goal) / 15) * 5,
+  }));
+  pool.push({ headshot: true, goal: 2, text: 'Boshga 2 marta urish', reward: 30 });
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, 3).map((mission) => ({ ...mission, progress: 0 }));
+}
+
 const game = {
   state: 'menu',
   score: 0,
   kills: {},
+  missions: [],
   shots: 0,
   hits: 0,
   timeLeft: CONFIG.roundSeconds,
@@ -3432,6 +3856,29 @@ function onAnimalKilled(animal, headshot) {
   game.kills[kind]++;
   updateScoreHud();
   showPopup(`+${points} ${spec.name}${headshot ? ' · boshga!' : ''}`);
+
+  for (const mission of game.missions) {
+    if (mission.progress >= mission.goal) continue;
+    if (mission.kind === kind || (mission.headshot && headshot)) {
+      mission.progress++;
+      if (mission.progress === mission.goal) {
+        showPopup(`Topshiriq bajarildi: +${mission.reward} tanga`);
+        sound.chime();
+      }
+    }
+  }
+  updateMissionHud();
+}
+
+/** Dori ichish: H tugmasi. */
+function useMedkit() {
+  if (profile.medkits === 0 || player.hp >= CONFIG.player.maxHp) return;
+  profile.medkits--;
+  saveProfile();
+  player.hp = Math.min(CONFIG.player.maxHp, player.hp + CONFIG.medkitHeal);
+  sound.heal();
+  updateHealthHud();
+  updateMedkitHud();
 }
 
 function resetRound() {
@@ -3441,6 +3888,7 @@ function resetRound() {
     hits: 0,
     timeLeft: CONFIG.roundSeconds,
     kills: Object.fromEntries(Object.keys(SPECIES).map((kind) => [kind, 0])),
+    missions: createMissions(),
   });
 
   player.pos.set(0, terrainHeight(0, 0) + CONFIG.player.eyeHeight, 0);
@@ -3450,9 +3898,8 @@ function resetRound() {
   player.recoil = player.shake = player.aim = player.crouch = 0;
   player.crouching = false;
 
-  Object.assign(weapon, {
-    ammo: CONFIG.weapon.magazine, reserve: CONFIG.weapon.reserve, cooldown: 0, reloadLeft: 0, kick: 0, flashLeft: 0,
-  });
+  Object.assign(weapon, { reloadLeft: 0, kick: 0, flashLeft: 0 });
+  stockWeapons();
   for (const pool of Object.values(tracks)) pool.clear();
   nearbyTrackLabel = null;
   ui.reloadBar.classList.remove('active');
@@ -3468,7 +3915,17 @@ function resetRound() {
   updateAmmoHud();
   updateHealthHud();
   updateTimeHud();
+  updateMissionHud();
+  updateMedkitHud();
   setHint(null);
+}
+
+/** Raund uchun vaqt va ob-havoni tanlaydi: oddiy kunduz boshqalaridan ko'proq chiqadi. */
+function chooseConditions() {
+  const { day, dawn, dusk, mist, rain: rainy } = CONDITIONS;
+  applyConditions(pick([day, day, dawn, dusk, mist, rainy]));
+  ui.conditionLine.textContent = conditions.name;
+  sound.setRain(Boolean(conditions.rain));
 }
 
 /** Sichqoncha qulflanganda yoki erkin rejimda o'yinni boshlaydi/davom ettiradi. */
@@ -3476,16 +3933,22 @@ function enterPlay() {
   game.state = 'playing';
   ui.menu.hidden = ui.pause.hidden = ui.result.hidden = true;
   ui.hud.hidden = false;
-  rifle.visible = true;
+  viewModel.visible = true;
   document.body.classList.toggle('free-mouse', pointer.free);
   sound.context?.resume();
 }
 
+/** Bosilgan tugmalar holatini tozalaydi: o'yin to'xtaganda hech narsa "yopishib" qolmasin. */
+function releaseInput() {
+  input.keys = {};
+  input.aiming = input.fire = input.scoping = false;
+  input.edgeTurn = 0;
+  ui.binoculars.hidden = true;
+}
+
 function pauseRound() {
   game.state = 'paused';
-  input.keys = {};
-  input.aiming = input.fire = false;
-  input.edgeTurn = 0;
+  releaseInput();
   document.body.classList.remove('free-mouse');
   sound.context?.suspend();
   ui.pauseNote.textContent = '';
@@ -3516,6 +3979,7 @@ function onLockFailed() {
 function startRound() {
   sound.init();
   resetRound();
+  chooseConditions();
   game.state = 'paused'; // sichqoncha qulflangach "playing" ga o'tadi
   requestLock();
 }
@@ -3538,10 +4002,8 @@ function onPointerLockChange() {
 function endRound(reason) {
   game.state = 'over';
   player.noise = 0;
-  input.keys = {};
-  input.aiming = input.fire = false;
-  input.edgeTurn = 0;
-  rifle.visible = false;
+  releaseInput();
+  viewModel.visible = false;
   ui.hud.hidden = true;
   document.body.classList.remove('free-mouse');
   document.exitPointerLock?.();
@@ -3551,6 +4013,11 @@ function endRound(reason) {
   const accuracy = game.shots ? game.hits / game.shots : 0;
   const accuracyBonus = game.hits >= 3 ? Math.round(game.score * accuracy * 0.25) : 0;
   game.score += accuracyBonus;
+
+  // Tanga: ochkodan va bajarilgan topshiriqlardan
+  const finished = game.missions.filter((mission) => mission.progress >= mission.goal);
+  const coins = Math.round(game.score / 10) + finished.reduce((sum, mission) => sum + mission.reward, 0);
+  profile.coins += coins;
 
   const previousBest = profile.best;
   const isRecord = game.score > previousBest;
@@ -3566,6 +4033,8 @@ function endRound(reason) {
     .map((kind) => [SPECIES[kind].name, game.kills[kind]]);
   rows.push(['Aniqlik', `${Math.round(accuracy * 100)}% (${game.hits} / ${game.shots})`]);
   if (accuracyBonus) rows.push(['Aniqlik bonusi', `+${accuracyBonus}`]);
+  rows.push(['Topshiriqlar', `${finished.length} / ${game.missions.length}`]);
+  rows.push(['Tanga', `+${coins} (jami ${profile.coins})`]);
   ui.finalTable.replaceChildren(...rows.map(([label, value]) => {
     const row = document.createElement('tr');
     row.insertCell().textContent = label;
@@ -3591,7 +4060,8 @@ document.addEventListener('pointerlockerror', onLockFailed);
 document.addEventListener('mousemove', (event) => {
   if (game.state !== 'playing') return;
   // Mo'ljalga olganda kamera sekinroq aylanadi, shunda uzoqdagi nishonni ushlash oson
-  const sensitivity = CONFIG.player.lookSensitivity * profile.settings.sensitivity * lerp(1, 0.55, player.aim);
+  const zoom = lerp(lerp(1, 0.55, player.aim), 0.22, player.scope);
+  const sensitivity = CONFIG.player.lookSensitivity * profile.settings.sensitivity * zoom;
   player.yaw -= event.movementX * sensitivity;
   player.pitch = clamp(player.pitch - event.movementY * sensitivity, -1.45, 1.45);
   input.lookX += event.movementX;
@@ -3618,11 +4088,24 @@ document.addEventListener('keydown', (event) => {
   if (game.state !== 'playing') return;
   input.keys[event.code] = true;
   if (event.code === 'KeyR') startReload();
-  if (event.code === 'KeyC' && !event.repeat) player.crouching = !player.crouching;
+  if (event.repeat) return;
+  if (event.code === 'KeyC') player.crouching = !player.crouching;
+  if (event.code === 'KeyH') useMedkit();
+  if (event.code === 'Digit1') trySwitchWeapon('rifle');
+  if (event.code === 'Digit2') trySwitchWeapon('shotgun');
+  if (event.code === 'Digit3') trySwitchWeapon('bow');
+  if (event.code === 'KeyB' && owns('binoculars')) {
+    input.scoping = true;
+    ui.binoculars.hidden = false;
+  }
   if (event.code === 'Escape' && pointer.free) pauseRound(); // qulflangan rejimda buni brauzer qiladi
 });
 document.addEventListener('keyup', (event) => {
   input.keys[event.code] = false;
+  if (event.code === 'KeyB') {
+    input.scoping = false;
+    ui.binoculars.hidden = true;
+  }
 });
 
 window.addEventListener('blur', () => {
@@ -3674,6 +4157,50 @@ document.querySelectorAll('[data-open-settings]').forEach((button) => button.add
 }));
 ui.settingsCloseBtn.addEventListener('click', () => { ui.settings.hidden = true; });
 
+/* Do'kon */
+
+const SHOP_ITEMS = [
+  { id: 'shotgun', name: 'Ov miltig‘i', price: 120, note: 'Yaqinda juda kuchli, uzoqqa yetmaydi. 2 tugmasi.' },
+  { id: 'bow', name: 'Kamon', price: 150, note: 'Ovozsiz: atrofdagi hayvonlar cho‘chimaydi. O‘q pastga tushadi. 3 tugmasi.' },
+  { id: 'binoculars', name: 'Durbin', price: 60, note: 'B tugmasini bosib turib uzoqni ko‘rish.' },
+  { id: 'camo', name: 'Kamuflyaj', price: 100, note: 'Hayvonlar sizni 20% yaqinroqdan sezadi.' },
+  { id: 'ammoPouch', name: 'O‘q xaltasi', price: 80, note: 'Har raundda zaxira o‘q 50% ko‘p bo‘ladi.' },
+  { id: 'medkit', name: 'Dori', price: 30, repeatable: true, note: `H tugmasi: ${CONFIG.medkitHeal} jon tiklaydi.` },
+];
+
+function buyItem(item) {
+  if (profile.coins < item.price) return;
+  profile.coins -= item.price;
+  if (item.repeatable) profile.medkits++;
+  else profile.owned.push(item.id);
+  saveProfile();
+  showShop();
+}
+
+function showShop() {
+  ui.shopCoins.textContent = `Tanga: ${profile.coins}`;
+  ui.shopList.replaceChildren(...SHOP_ITEMS.map((item) => {
+    const row = document.createElement('li');
+    const name = document.createElement('b');
+    name.textContent = item.repeatable ? `${item.name} (bor: ${profile.medkits})` : item.name;
+    const note = document.createElement('small');
+    note.textContent = item.note;
+    const button = document.createElement('button');
+    const bought = !item.repeatable && owns(item.id);
+    button.textContent = bought ? 'Sotib olingan' : `${item.price} tanga`;
+    button.disabled = bought || profile.coins < item.price;
+    button.addEventListener('click', () => buyItem(item));
+    row.append(name, note, button);
+    return row;
+  }));
+}
+
+document.querySelectorAll('[data-open-shop]').forEach((button) => button.addEventListener('click', () => {
+  showShop();
+  ui.shop.hidden = false;
+}));
+ui.shopCloseBtn.addEventListener('click', () => { ui.shop.hidden = true; });
+
 /* ==========================================================================
    17. ISHGA TUSHIRISH VA ASOSIY SIKL
    ========================================================================== */
@@ -3684,9 +4211,6 @@ createForest();
 createShoreline();
 createAnimals();
 applyQuality();
-
-// O'q belgilarini HUD'da bir marta yasab qo'yamiz
-ui.ammoPips.replaceChildren(...Array.from({ length: CONFIG.weapon.magazine }, () => document.createElement('i')));
 
 // Bosh menyudagi hayvonlar ro'yxati to'g'ridan-to'g'ri sozlamalardan olinadi
 byId('preyList').replaceChildren(...Object.values(SPECIES).map((spec) => {
@@ -3721,6 +4245,7 @@ function frame() {
   if (game.state === 'playing') {
     updatePlayer(dt);
     updateWeapon(dt);
+    updateArrows(dt);
     updateRound(realDt);
   } else if (game.state !== 'paused') {
     updateIdleCamera(dt);
@@ -3734,6 +4259,7 @@ function frame() {
 
   updateParticles(dt);
   updateMotes(dt, elapsed);
+  updateRain(dt);
   updateSun(player.pos);
   updateDetailTiles();
   skyDome.position.copy(camera.position);
