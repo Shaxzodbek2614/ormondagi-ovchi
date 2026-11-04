@@ -246,16 +246,31 @@ function showImpact(point, hitsTree) {
 
 /** Hayvonga tekkan zarba. */
 function registerHit(animal, part, power, point) {
+  burst(point, '#7a1f14', 12, 3.5);
+  sound.impact();
+  ui.hitMarker.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220 });
+  if (network.isClient) sendToHost({ t: 'hit', id: animal.id, part, power });
+  else applyHit(animal, part, power, network.roster.get(HOST_ID));
+}
+
+/** Zarbani hayvonga qo'llaydi: yakka o'yinda shu yerda, birga o'ynaganda xostda. */
+function applyHit(animal, part, power, shooter) {
   // Missiya shartlari uchun hayvon o'q tekkan paytda nima qilayotgani eslab qolinadi
   const moment = {
     headshot: part === 'head',
     unaware: animal.state === 'graze' || animal.state === 'walk',
     airborne: animal.state === 'fly',
+    shooter,
   };
-  burst(point, '#7a1f14', 12, 3.5);
-  sound.impact();
-  ui.hitMarker.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220 });
   if (animal.takeHit(part, power)) onAnimalKilled(animal, moment);
+}
+
+/** O'q ovozi berilgan masofadagi hayvonlarni cho'chitadi. */
+function alarmAnimals(x, z, radius) {
+  for (const animal of animals) {
+    const inRange = Math.hypot(animal.pos.x - x, animal.pos.z - z) < radius;
+    if (inRange && animal.alive && animal.spawned && !animal.dormant) animal.startle();
+  }
 }
 
 /** Bitta o'q yo'lini kuzatadi. Hayvonga tekkan bo'lsa, natija struck ro'yxatiga yoziladi. */
@@ -313,9 +328,8 @@ function fire() {
 
   // O'q ovozi atrofdagi hayvonlarni cho'chitadi. Guldurak paytida ovoz bosilib ketadi.
   const alarmRadius = gun.alarmRadius * (storm.thunderLeft > 0 ? 0.35 : 1);
-  for (const animal of animals) {
-    if (animal.alive && animal.root.visible && animal.distanceToPlayer() < alarmRadius) animal.startle();
-  }
+  if (network.active) sendToHost({ t: 'shot', radius: alarmRadius });
+  else alarmAnimals(player.pos.x, player.pos.z, alarmRadius);
 }
 
 /* Kamon o'qlari: sekin uchadi, shuning uchun har kadrda yo'lini tekshiramiz */
@@ -400,6 +414,8 @@ function startReload() {
 
 function updateWeapon(dt) {
   const { gun } = weapon;
+  viewModel.visible = !player.down;
+  if (player.down) input.fire = false;
   weapon.cooldown = Math.max(0, weapon.cooldown - dt);
 
   if (input.fire) {

@@ -56,6 +56,15 @@ function updatePlayer(dt) {
 
   player.yaw -= input.edgeTurn * 1.8 * dt;
 
+  // Yiqilgan o'yinchi yura olmaydi, faqat atrofga qaraydi
+  if (player.down) {
+    player.noise = 0;
+    player.pos.y = terrainHeight(player.pos.x, player.pos.z) + 0.4;
+    camera.position.copy(player.pos);
+    camera.rotation.set(player.pitch, player.yaw, 0.4);
+    return;
+  }
+
   const forward = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - input.stickY;
   const strafe = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + input.stickX;
   const throttle = Math.min(1, Math.hypot(forward, strafe)); // joystick qanchalik surilgan
@@ -148,6 +157,10 @@ function updatePlayer(dt) {
 }
 
 function hintText(fromCenter, blockedByWater) {
+  if (game.reviveTarget) {
+    const percent = Math.round((game.reviveProgress / REVIVE_TIME) * 100);
+    return `E tugmasini bosib turing: ${game.reviveTarget.name} (${percent}%)`;
+  }
   if (weapon.ammo === 0 && weapon.reloadLeft <= 0 && weapon.reserve > 0) return 'O‘q tugadi: R tugmasini bosing';
   if (weapon.ammo === 0 && weapon.reserve === 0) return 'O‘q qolmadi';
   if (blockedByWater) return 'Bu yer juda chuqur: sayoz joyni qidiring';
@@ -157,12 +170,18 @@ function hintText(fromCenter, blockedByWater) {
 
 /** Hayvon zarbasi: ovchi shu kompyuterdagi o'yinchi bo'lsa, zararni shu yerda hisoblaymiz. */
 function strikeHunter(hunter, amount, attacker) {
-  if (hunter === player) damagePlayer(amount, attacker);
+  if (hunter === player) {
+    damagePlayer(amount, attacker);
+    return;
+  }
+  sendTo(network.roster.get(hunter.id)?.connection, {
+    t: 'hurt', amount, x: attacker.pos.x, z: attacker.pos.z, name: attacker.spec.name,
+  });
 }
 
 /** @param attacker zarba kelgan hayvon: o'yinchi undan orqaga itariladi */
 function damagePlayer(amount, attacker) {
-  if (game.state !== 'playing') return;
+  if (game.state !== 'playing' || player.down) return;
   player.hp = Math.max(0, player.hp - Math.round(amount));
   game.damageTaken += Math.round(amount);
   player.shake = 1;
@@ -179,5 +198,7 @@ function damagePlayer(amount, attacker) {
   );
   ui.vignette.animate([{ opacity: 1 }, { opacity: lowHealthGlow() }], { duration: 600, easing: 'ease-out' });
   updateHealthHud();
-  if (player.hp === 0) endRound(`${attacker.spec.name} sizni yengdi`);
+  if (player.hp > 0) return;
+  if (game.mode === 'team') goDown();
+  else endRound(`${attacker.spec.name} sizni yengdi`);
 }

@@ -36,10 +36,9 @@ function updateIdleCamera(dt) {
   camera.rotation.set(0.02, player.yaw, 0);
 }
 
-function frame() {
-  requestAnimationFrame(frame);
+/** O'yin mantig'ining bir qadami. Rasm chizish alohida: xost oynasi yashirilganda ham hisob-kitob davom etadi. */
+function simulate(realDt) {
   // Fizika uchun qadam cheklanadi, lekin raund vaqti haqiqiy soat bo'yicha hisoblanadi
-  const realDt = Math.min(clock.getDelta(), 1);
   const dt = Math.min(realDt, 0.05);
   elapsed += dt;
 
@@ -48,7 +47,7 @@ function frame() {
     updateWeapon(dt);
     updateArrows(dt);
     if (IS_TOUCH_DEVICE) updateTouchButtons();
-    updateRound(realDt);
+    if (!network.isClient) updateRound(realDt);
   } else if (game.state !== 'paused') {
     updateIdleCamera(dt);
   }
@@ -58,6 +57,7 @@ function frame() {
     updateTracks(dt);
     sound.updateAmbience(dt);
   }
+  updateNetwork(dt);
 
   updateParticles(dt);
   updateMotes(dt, elapsed);
@@ -69,10 +69,28 @@ function frame() {
   skyDome.position.copy(camera.position);
   skyMaterial.uniforms.time.value = elapsed;
 
+}
+
+let lastFrameAt = 0;
+
+function frame() {
+  requestAnimationFrame(frame);
+  lastFrameAt = performance.now();
+  simulate(Math.min(clock.getDelta(), 1));
+
   renderer.clear();
   renderer.render(scene, camera);
   renderer.clearDepth();
   renderer.render(weaponScene, weaponCamera);
+}
+
+// Oyna orqa fonga o'tsa, brauzer kadrlarni to'xtatadi. Birga o'ynaganda xost o'rmonni hisoblashda
+// davom etishi kerak, shuning uchun alohida oqimdagi soat qadamlarni uzluksiz yuboradi.
+if (roomCode) {
+  const ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 50);'])));
+  ticker.onmessage = () => {
+    if (network.active && performance.now() - lastFrameAt > 200) simulate(Math.min(clock.getDelta(), 1));
+  };
 }
 
 frame();
@@ -81,3 +99,4 @@ frame();
 window.ovchiReady = true;
 ui.startBtn.disabled = false;
 ui.startBtn.textContent = 'Erkin ov';
+bootRoom();

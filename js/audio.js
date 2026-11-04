@@ -181,6 +181,13 @@ const sound = {
   chime() {
     [660, 880, 1100].forEach((from, i) => this.tone({ from, volume: 0.08, duration: 0.2, delay: i * 0.09 }));
   },
+  /** Sherigining o'q ovozi: masofaga qarab pasayadi. */
+  distantShot(position) {
+    if (!this.context) return;
+    const { panner, volume } = this.spatial(position);
+    this.noiseHit({ from: 2200, to: 200, volume: volume * 0.7, duration: 0.4, target: panner });
+    this.tone({ from: 110, to: 36, volume: volume * 0.5, duration: 0.22, target: panner });
+  },
   thunder() {
     const delay = randRange(0.3, 1.3);
     this.noiseHit({ from: 420, to: 60, volume: 0.9, duration: 2.4, delay });

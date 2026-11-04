@@ -57,6 +57,7 @@ function onAnimalKilled(animal, moment) {
   game.kills[kind]++;
   updateScoreHud();
   showPopup(`+${points} ${spec.name}${moment.headshot ? ' · boshga!' : ''}`);
+  if (network.isHost) broadcast({ t: 'kill', name: spec.name, points, headshot: moment.headshot });
 
   for (const goal of game.missions) {
     if (goal.progress >= goal.goal || !goalMatches(goal, animal, moment)) continue;
@@ -89,7 +90,7 @@ function resetRound() {
     kills: Object.fromEntries(Object.keys(SPECIES).map((kind) => [kind, 0])),
     damageTaken: 0,
     winDelay: undefined,
-    missions: game.mode === 'mission'
+    missions: game.activeMission
       ? game.activeMission.goals.map((goal) => ({ ...goal, progress: 0 }))
       : createMissions(),
   });
@@ -109,6 +110,7 @@ function resetRound() {
 
   player.lampOn = conditions.night;
   player.down = false;
+  ui.downBanner.hidden = true;
 
   animals.forEach((animal) => {
     animal.spawned = false; // guruh a'zolari yangi joyda yo'lboshchisi yonida chiqishi uchun
@@ -145,6 +147,7 @@ function applySetup(setup) {
 /** Sichqoncha qulflanganda yoki erkin rejimda o'yinni boshlaydi/davom ettiradi. */
 function enterPlay() {
   game.state = 'playing';
+  game.menuOpen = false;
   ui.menu.hidden = ui.pause.hidden = ui.result.hidden = ui.setup.hidden = ui.missions.hidden = true;
   ui.hud.hidden = false;
   viewModel.visible = true;
@@ -165,12 +168,18 @@ function releaseInput() {
 }
 
 function pauseRound() {
-  game.state = 'paused';
   releaseInput();
   document.body.classList.remove('free-mouse');
+  ui.pause.hidden = false;
+  // Birga o'ynaganda o'rmon to'xtamaydi: faqat shu o'yinchining boshqaruvi o'chadi
+  if (game.mode === 'team') {
+    game.menuOpen = true;
+    ui.pauseNote.textContent = 'O‘yin davom etmoqda.';
+    return;
+  }
+  game.state = 'paused';
   sound.context?.suspend();
   ui.pauseNote.textContent = '';
-  ui.pause.hidden = false;
 }
 
 function requestLock() {
@@ -182,7 +191,7 @@ function requestLock() {
 }
 
 function onLockFailed() {
-  if (game.state !== 'paused') return;
+  if (game.state !== 'paused' && !game.menuOpen) return;
   if (pointer.lockWorked) {
     // Esc bosilgandan keyin brauzer taxminan bir soniya qayta qulflashga ruxsat bermaydi
     ui.pauseNote.textContent = 'Bir soniya kuting va yana bosing.';
@@ -196,6 +205,10 @@ function onLockFailed() {
 
 /** O'yinni to'xtatib bosh menyuga qaytadi. */
 function returnToMenu() {
+  if (network.active) {
+    leaveRoom();
+    return;
+  }
   game.state = 'menu';
   player.noise = 0;
   releaseInput();
@@ -209,8 +222,15 @@ function returnToMenu() {
 
 /** Natija oynasidagi "Qayta o'ynash": xuddi shu rejimni boshidan boshlaydi. */
 function restartRound() {
-  if (game.mode === 'mission') startMission(game.activeMission);
-  else startRound();
+  if (game.mode === 'team') {
+    game.state = 'menu';
+    viewModel.visible = false;
+    showLobby();
+  } else if (game.mode === 'mission') {
+    startMission(game.activeMission);
+  } else {
+    startRound();
+  }
 }
 
 function startRound() {
@@ -231,10 +251,10 @@ function resumeRound() {
 
 function onPointerLockChange() {
   const locked = document.pointerLockElement === canvas;
-  if (locked && game.state === 'paused') {
+  if (locked && (game.state === 'paused' || game.menuOpen)) {
     pointer.lockWorked = true;
     enterPlay();
-  } else if (!locked && game.state === 'playing') {
+  } else if (!locked && game.state === 'playing' && !game.menuOpen) {
     pauseRound();
   }
 }
@@ -244,6 +264,9 @@ function onPointerLockChange() {
  * @param won missiyada g'alaba bo'ldimi (erkin ovda ahamiyati yo'q)
  */
 function endRound(reason, won = false) {
+  if (network.isHost && game.mode === 'team') {
+    broadcast({ t: 'end', reason, won, score: game.score, kills: game.kills });
+  }
   game.state = 'over';
   player.noise = 0;
   releaseInput();
@@ -255,7 +278,7 @@ function endRound(reason, won = false) {
 
   // Aniq otgan ovchi qo'shimcha ochko oladi
   const accuracy = game.shots ? game.hits / game.shots : 0;
-  const accuracyBonus = game.hits >= 3 ? Math.round(game.score * accuracy * 0.25) : 0;
+  const accuracyBonus = game.hits >= 3 && game.mode !== 'team' ? Math.round(game.score * accuracy * 0.25) : 0;
   game.score += accuracyBonus;
 
   const rows = Object.keys(SPECIES)
@@ -278,8 +301,8 @@ function endRound(reason, won = false) {
     coins = Math.round(earned * conditions.reward);
     rows.push(['Topshiriqlar', `${finished.length} / ${game.missions.length}`]);
 
-    const isRecord = game.score > profile.best;
-    summary = isRecord ? 'Yangi rekord!' : `Rekord: ${profile.best}`;
+    const isRecord = game.mode === 'free' && game.score > profile.best;
+    summary = game.mode === 'team' ? 'Jamoa natijasi' : isRecord ? 'Yangi rekord!' : `Rekord: ${profile.best}`;
     if (isRecord) profile.best = game.score;
   }
   profile.coins += coins;
@@ -297,6 +320,7 @@ function endRound(reason, won = false) {
   }));
   ui.nextMissionBtn.hidden = !(won && nextMission);
   ui.nextMissionBtn.onclick = nextMission ? () => startMission(nextMission) : null;
+  ui.againBtn.textContent = game.mode === 'team' ? 'Xonaga qaytish' : 'Qayta o‘ynash';
   ui.result.hidden = false;
 }
 

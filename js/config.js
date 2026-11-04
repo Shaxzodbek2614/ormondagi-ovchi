@@ -74,6 +74,7 @@ const DEFAULT_PROFILE = {
   coins: 0,
   owned: [],    // sotib olingan jihozlar
   missions: {}, // missiya id: olingan yulduzlar
+  nickname: '',
   medkits: 0,
   settings: { sensitivity: 1, volume: 0.8, quality: IS_TOUCH_DEVICE ? 'low' : 'high' },
   setup: { time: 'day', weather: 'clear', season: 'summer', wind: 'breeze', difficulty: 'normal', duration: '180' },

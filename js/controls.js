@@ -29,8 +29,11 @@ function stopScoping() {
   ui.binoculars.hidden = true;
 }
 
+/** O'yinchi hozir boshqara oladimi: pauza oynasi ochiq bo'lsa, yo'q. */
+const canControl = () => game.state === 'playing' && !game.menuOpen;
+
 document.addEventListener('mousemove', (event) => {
-  if (game.state !== 'playing') return;
+  if (!canControl()) return;
   turnView(event.movementX, event.movementY);
 
   if (pointer.free) {
@@ -40,7 +43,7 @@ document.addEventListener('mousemove', (event) => {
 });
 
 document.addEventListener('mousedown', (event) => {
-  if (game.state !== 'playing') return;
+  if (!canControl()) return;
   if (event.button === 0) input.fire = true;
   if (event.button === 2) input.aiming = true;
 });
@@ -51,13 +54,14 @@ document.addEventListener('contextmenu', (event) => event.preventDefault());
 
 document.addEventListener('keydown', (event) => {
   if (event.code === 'KeyM' && !event.repeat) sound.toggleMute();
-  if (game.state !== 'playing') return;
+  if (!canControl()) return;
   input.keys[event.code] = true;
   if (event.code === 'KeyR') startReload();
   if (event.repeat) return;
   if (event.code === 'KeyC') player.crouching = !player.crouching;
   if (event.code === 'KeyH') useMedkit();
   if (event.code === 'KeyF') player.lampOn = !player.lampOn;
+  if (event.code === 'KeyG' && game.mode === 'team') placePing();
   if (event.code === 'Digit1') trySwitchWeapon('rifle');
   if (event.code === 'Digit2') trySwitchWeapon('shotgun');
   if (event.code === 'Digit3') trySwitchWeapon('bow');
@@ -90,6 +94,8 @@ const TOUCH_BUTTONS = [
   { id: 'swap', label: 'Qurol', press: cycleWeapon, isAvailable: () => availableWeapons().length > 1 },
   { id: 'scope', label: 'Durbin', press: startScoping, release: stopScoping, isAvailable: () => owns('binoculars') },
   { id: 'heal', label: 'Dori', press: useMedkit, isAvailable: () => profile.medkits > 0 },
+  { id: 'ping', label: 'Belgi', press: () => placePing(), isAvailable: () => game.mode === 'team' },
+  { id: 'revive', label: 'Turg‘izish', press: () => { input.keys.KeyE = true; }, release: () => { input.keys.KeyE = false; }, isAvailable: () => Boolean(game.reviveTarget) },
   { id: 'lamp', label: 'Chiroq', press: () => { player.lampOn = !player.lampOn; }, isOn: () => player.lampOn, isAvailable: () => conditions.night },
   { id: 'pause', label: 'II', press: pauseRound },
 ];
@@ -214,6 +220,7 @@ function randomizeSetup() {
 function showSetup() {
   applySetup(profile.setup);
   renderSetup();
+  ui.setupStartBtn.textContent = network.active ? 'Saqlash' : 'Ovga chiqish';
   ui.menu.hidden = true;
   ui.setup.hidden = false;
 }
@@ -238,9 +245,17 @@ ui.setupRows.replaceChildren(...Object.entries(SETUP_OPTIONS).map(([option, { la
   return row;
 }));
 
-ui.setupStartBtn.addEventListener('click', startRound);
+/** Xonadan ochilgan sharoit oynasi xonaga qaytadi, oddiy menyudan ochilgani raundni boshlaydi. */
+ui.setupStartBtn.addEventListener('click', () => {
+  if (network.active) showLobby();
+  else startRound();
+});
 ui.setupRandomBtn.addEventListener('click', randomizeSetup);
 ui.setupBackBtn.addEventListener('click', () => {
+  if (network.active) {
+    showLobby();
+    return;
+  }
   ui.setup.hidden = true;
   ui.menu.hidden = false;
 });

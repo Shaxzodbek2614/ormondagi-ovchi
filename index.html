@@ -61,6 +61,8 @@
   <div id="threat" hidden><i></i></div>
   <div id="feed"></div>
   <div id="tip"></div>
+  <div id="markers"></div>
+  <div id="downBanner" hidden>Yiqildingiz. Sherigingiz sizni turg‘izishi kerak.</div>
   <div id="hint" hidden></div>
   <div id="warning" hidden>Cho‘chqa hujum qilmoqda!</div>
 </div>
@@ -95,11 +97,14 @@
       <dt><kbd>B</kbd></dt><dd>Durbin</dd>
       <dt><kbd>H</kbd></dt><dd>Dori ichish</dd>
       <dt><kbd>F</kbd></dt><dd>Bosh chirog‘i</dd>
+      <dt><kbd>G</kbd></dt><dd>Sherikka belgi</dd>
+      <dt><kbd>E</kbd></dt><dd>Sherikni turg‘izish</dd>
       <dt><kbd>M</kbd></dt><dd>Ovozni o‘chirish</dd>
     </dl>
     <div class="actions">
       <button class="primary" id="startBtn" disabled>Yuklanmoqda…</button>
       <button class="primary" id="missionsBtn">Missiyalar</button>
+      <button class="primary" id="teamBtn">Birga ov</button>
       <button class="secondary" data-open-shop>Do‘kon</button>
       <button class="secondary" data-open-settings>Sozlamalar</button>
     </div>
@@ -171,6 +176,47 @@
   </div>
 </section>
 
+<!-- Birga ov: xona ochish yoki kirish -->
+<section class="screen" id="team" hidden>
+  <div class="card">
+    <h2>Birga ov</h2>
+    <label class="setting">
+      <span class="setting-head">Ismingiz</span>
+      <input class="text-field" id="nickInput" maxlength="16" autocomplete="off">
+    </label>
+    <button class="primary" id="createRoomBtn">Xona ochish</button>
+    <label class="setting">
+      <span class="setting-head">Do‘stingizning xona kodi</span>
+      <input class="text-field" id="roomInput" maxlength="5" autocomplete="off" placeholder="Masalan: K7M2Q">
+    </label>
+    <p id="teamError"></p>
+    <div class="actions">
+      <button class="primary" id="joinRoomBtn">Xonaga kirish</button>
+      <button class="secondary" id="teamBackBtn">Orqaga</button>
+    </div>
+  </div>
+</section>
+
+<!-- Kutish xonasi -->
+<section class="screen" id="lobby" hidden>
+  <div class="card wide">
+    <p class="eyebrow">Xona kodi</p>
+    <h2 id="lobbyCode"></h2>
+    <div class="copy-row">
+      <input class="text-field" id="lobbyLink" readonly aria-label="Xona havolasi">
+      <button class="secondary" id="copyLinkBtn">Nusxa olish</button>
+    </div>
+    <ul id="lobbyPlayers"></ul>
+    <p id="lobbyStatus"></p>
+    <div id="lobbyHostTools">
+      <div class="lobby-row"><span>Sharoit: <b id="lobbyConditions"></b></span><button class="secondary" id="lobbyConditionsBtn">O‘zgartirish</button></div>
+      <div class="lobby-row"><span>Vazifa: <b id="lobbyTaskName"></b></span><button class="secondary" id="lobbyTaskBtn">O‘zgartirish</button></div>
+      <button class="primary" id="lobbyStartBtn">Raundni boshlash</button>
+    </div>
+    <button class="secondary" id="lobbyLeaveBtn">Xonadan chiqish</button>
+  </div>
+</section>
+
 <!-- Missiyalar ro'yxati -->
 <section class="screen" id="missions" hidden>
   <div class="card wide">
@@ -225,6 +271,11 @@
     'hud.js',
     'game.js',
     'missions.js',
+    'avatars.js',
+    'network.js',
+    'team-missions.js',
+    'team-round.js',
+    'lobby.js',
     'controls.js',
     'main.js',
   ];

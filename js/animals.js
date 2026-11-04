@@ -319,6 +319,46 @@ class Animal {
     if (this.root.visible) this.animate(dt);
   }
 
+  /** Mijozda hayvon o'zi fikrlamaydi: xostdan kelgan holatni silliq ko'rsatadi. */
+  updatePuppet(dt) {
+    const { net, pos, spec } = this;
+    const now = performance.now();
+    if (!net || now - net.stamp > 1500 || net.state === 'hidden') {
+      this.root.visible = false;
+      return;
+    }
+    this.root.visible = true;
+
+    if (net.state === 'dead') {
+      if (this.state !== 'dead') {
+        this.state = 'dead';
+        this.deadTime = 0;
+        this.fallSide = pick([-1, 1]);
+      }
+      this.updateDeath(dt);
+      return;
+    }
+
+    // Oxirgi xabardan beri o'tgan vaqt uchun hayvon qayerga yetganini taxmin qilamiz
+    const age = Math.min((now - net.stamp) / 1000, 0.25);
+    const x = net.x + Math.sin(net.heading) * net.speed * age;
+    const z = net.z + Math.cos(net.heading) * net.speed * age;
+    const jumped = Math.hypot(x - pos.x, z - pos.z) > 12;
+    pos.x = jumped ? x : damp(pos.x, x, 12, dt);
+    pos.z = jumped ? z : damp(pos.z, z, 12, dt);
+    this.heading += angleDelta(this.heading, net.heading) * (1 - Math.exp(-12 * dt));
+    this.speed = damp(this.speed, net.speed, 8, dt);
+    this.state = net.state;
+    this.prey = net.targeted ? player : null;
+    this.headGoal = net.state === 'graze' ? spec.grazeAngle ?? 0 : 0.1;
+
+    const airborne = net.state === 'fly' || net.state === 'leap';
+    pos.y = airborne ? damp(pos.y, net.y, 12, dt) : this.groundLevel(pos.x, pos.z);
+    this.root.rotation.set(0, this.heading, 0);
+    this.leaveTracks(dt);
+    this.animate(dt);
+  }
+
   /** Holatlar mashinasi. Qaytariladigan qiymat: hozir qanday tezlikda yurish kerak. */
   think(dt) {
     const { spec, prey } = this;
@@ -735,6 +775,10 @@ class Fish extends Animal {
 
   startle() {}
 
+  animate() {
+    this.tail.rotation.y = Math.sin(elapsed * 40) * 0.5;
+  }
+
   leap() {
     const watcher = pick(hunters);
     const lake = lakes.reduce((best, candidate) => (
@@ -810,7 +854,8 @@ function updateAnimals(dt) {
   let attackerDistance = 35;
   for (const animal of animals) {
     if (animal.dormant) continue;
-    animal.update(dt);
+    if (network.isClient) animal.updatePuppet(dt);
+    else animal.update(dt);
     if (animal.state !== 'charge' || animal.prey !== player) continue;
     const distance = animal.distanceToPlayer();
     if (distance < attackerDistance) {
