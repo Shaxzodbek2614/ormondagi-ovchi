@@ -346,7 +346,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const CONFIG = {
   roundSeconds: 180,
-  worldRadius: 150,        // o'yinchi yura oladigan doira radiusi
+  worldRadius: 260,        // o'yinchi yura oladigan doira radiusi
   spawnClearing: 13,       // boshlang'ich nuqta atrofidagi ochiq maydon
   player: {
     eyeHeight: 1.7,
@@ -445,12 +445,136 @@ function layeredNoise(x, z) {
   return valueNoise(x, z) * 0.6 + valueNoise(x * 2.1, z * 2.1) * 0.28 + valueNoise(x * 4.3, z * 4.3) * 0.12;
 }
 
-/** Berilgan nuqtadagi yer balandligi. Dunyo chetida yer ko'tarilib, tabiiy devor hosil qiladi. */
-function terrainHeight(x, z) {
-  const hills = (layeredNoise(x * 0.014 + 10, z * 0.014 + 10) - 0.5) * 14;
-  const rim = smoothstep(Math.hypot(x, z), CONFIG.worldRadius - 10, CONFIG.worldRadius + 70) * 26;
-  return hills + rim;
+/* ==========================================================================
+   DUNYO XARITASI: yer balandligi, daryo va ko'llar
+   Hammasi o'yin boshida bir marta hisoblanib jadvalga yoziladi. Keyin balandlikni
+   so'rash juda arzon, chunki u shunchaki jadvaldan o'qiladi.
+   ========================================================================== */
+
+const WATER_LEVEL = -1.5;     // barcha suvlar uchun bitta sath
+const MAX_WADE_DEPTH = 1.15;  // o'yinchi kechib o'ta oladigan eng katta chuqurlik
+const SHORE_WIDTH = 16;       // qirg'oq balandligi shu masofada asta tepalikka qo'shiladi
+
+const FIELD_CELL = 2;
+const FIELD_HALF = CONFIG.worldRadius + 92;
+const FIELD_SIDE = (FIELD_HALF * 2) / FIELD_CELL + 1;
+
+/** Dunyo bo'ylab tekis taqsimlangan tasodifiy nuqta. */
+function randomPoint(maxRadius) {
+  const angle = Math.random() * TAU;
+  const radius = Math.sqrt(Math.random()) * maxRadius;
+  return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius };
 }
+
+/** Daryo dunyoning bir chetidan ikkinchisiga ilon izi bo'lib oqadi va boshlang'ich nuqtadan uzoqdan o'tadi. */
+function planRiver() {
+  const angle = Math.random() * TAU;
+  const dirX = Math.cos(angle), dirZ = Math.sin(angle);
+  const offset = randRange(75, 105) * pick([-1, 1]);
+  const phaseA = Math.random() * TAU, phaseB = Math.random() * TAU;
+  const reach = FIELD_HALF + 60;
+  const points = [];
+  for (let along = -reach; along <= reach; along += 14) {
+    const drift = offset + Math.sin(along * 0.012 + phaseA) * 26 + Math.sin(along * 0.031 + phaseB) * 9;
+    points.push({ x: dirX * along - dirZ * drift, z: dirZ * along + dirX * drift });
+  }
+  return points;
+}
+
+/** Bitta ko'l daryo ustida turadi, qolganlari o'rmon ichida tarqaladi. */
+function planLakes(riverPoints) {
+  const onRiver = riverPoints.filter(({ x, z }) => {
+    const distance = Math.hypot(x, z);
+    return distance > 90 && distance < CONFIG.worldRadius - 60;
+  });
+  const lakes = [{ ...pick(onRiver), radius: randRange(30, 40), seed: Math.random() * 50 }];
+
+  for (let attempt = 0; attempt < 300 && lakes.length < 4; attempt++) {
+    const point = randomPoint(CONFIG.worldRadius - 40);
+    const radius = randRange(20, 36);
+    const nearSpawn = Math.hypot(point.x, point.z) < radius + 50;
+    const nearLake = lakes.some((lake) => Math.hypot(lake.x - point.x, lake.z - point.z) < lake.radius + radius + 45);
+    if (!nearSpawn && !nearLake) lakes.push({ ...point, radius, seed: Math.random() * 50 });
+  }
+  return lakes;
+}
+
+const riverPoints = planRiver();
+const lakes = planLakes(riverPoints);
+
+/** Nuqtadan daryo o'rta chizig'igacha bo'lgan masofa. */
+function distanceToRiver(x, z) {
+  let nearest = Infinity;
+  for (let i = 1; i < riverPoints.length; i++) {
+    const a = riverPoints[i - 1], b = riverPoints[i];
+    const abX = b.x - a.x, abZ = b.z - a.z;
+    const t = clamp(((x - a.x) * abX + (z - a.z) * abZ) / (abX * abX + abZ * abZ), 0, 1);
+    nearest = Math.min(nearest, Math.hypot(x - a.x - abX * t, z - a.z - abZ * t));
+  }
+  return nearest;
+}
+
+/** Nuqtadan eng yaqin ko'l qirg'og'igacha masofa (ko'l ichida manfiy). Qirg'oq chizig'i notekis. */
+function distanceToLake(x, z) {
+  let nearest = Infinity;
+  for (const lake of lakes) {
+    const dx = x - lake.x, dz = z - lake.z;
+    const length = Math.hypot(dx, dz) || 1;
+    const wobble = valueNoise((dx / length) * 1.6 + lake.seed, (dz / length) * 1.6 + lake.seed);
+    nearest = Math.min(nearest, length - lake.radius * (0.72 + wobble * 0.56));
+  }
+  return nearest;
+}
+
+/** Ikki sonning silliq maksimumi: tepaliklar suv sathiga yetmasdan asta tekislanadi. */
+function smoothMax(a, b, softness) {
+  const blend = clamp(0.5 + (0.5 * (a - b)) / softness, 0, 1);
+  return lerp(b, a, blend) + softness * blend * (1 - blend);
+}
+
+/** Bir nuqtaning yer balandligini noldan hisoblaydi. Dunyo chetida yer ko'tarilib, tabiiy devor hosil qiladi. */
+function computeHeight(x, z) {
+  const hills = (layeredNoise(x * 0.014 + 10, z * 0.014 + 10) - 0.5) * 14;
+  const land = smoothMax(hills + 3, WATER_LEVEL + 1.7, 1.5);
+
+  const riverEdge = distanceToRiver(x, z) - (4.5 + valueNoise(x * 0.02 + 200, z * 0.02 + 200) * 4);
+  const lakeEdge = distanceToLake(x, z);
+  const shore = Math.min(riverEdge, lakeEdge);
+
+  const rim = smoothstep(Math.hypot(x, z), CONFIG.worldRadius - 10, CONFIG.worldRadius + 70) * 26;
+  const inland = smoothstep(shore, 0, SHORE_WIDTH);
+  if (shore >= 0) return lerp(WATER_LEVEL + 0.12, land, inland) + rim * smoothstep(shore, 0, SHORE_WIDTH * 2);
+
+  // Daryoning sayoz kechuv joylari va chuqur joylari almashib keladi, ko'llar esa chuqurroq
+  const riverDepth = 0.6 + valueNoise(x * 0.015 + 300, z * 0.015 + 300) * 1.6;
+  const depthLimit = lerp(3.4, riverDepth, smoothstep(lakeEdge - riverEdge, -6, 6));
+  return WATER_LEVEL + 0.12 - Math.min(-shore * 0.28, depthLimit);
+}
+
+const heightField = new Float32Array(FIELD_SIDE * FIELD_SIDE);
+for (let row = 0; row < FIELD_SIDE; row++) {
+  for (let column = 0; column < FIELD_SIDE; column++) {
+    heightField[row * FIELD_SIDE + column] = computeHeight(column * FIELD_CELL - FIELD_HALF, row * FIELD_CELL - FIELD_HALF);
+  }
+}
+
+/** Berilgan nuqtadagi yer balandligi (jadvaldagi to'rt qo'shni qiymatdan). */
+function terrainHeight(x, z) {
+  const gridX = clamp((x + FIELD_HALF) / FIELD_CELL, 0, FIELD_SIDE - 1.001);
+  const gridZ = clamp((z + FIELD_HALF) / FIELD_CELL, 0, FIELD_SIDE - 1.001);
+  const column = Math.floor(gridX), row = Math.floor(gridZ);
+  const fx = gridX - column, fz = gridZ - row;
+  const index = row * FIELD_SIDE + column;
+  return lerp(
+    lerp(heightField[index], heightField[index + 1], fx),
+    lerp(heightField[index + FIELD_SIDE], heightField[index + FIELD_SIDE + 1], fx),
+    fz,
+  );
+}
+
+/** Nuqtadagi suv chuqurligi. Quruqlikda manfiy bo'ladi. */
+const waterDepth = (x, z) => WATER_LEVEL - terrainHeight(x, z);
+const isDryLand = (x, z) => waterDepth(x, z) < -0.3;
 
 /* ==========================================================================
    3. SAHNA: renderer, kameralar, yorug'lik, osmon
@@ -649,42 +773,182 @@ function createGrassTexture() {
   }
   const texture = new THREE.CanvasTexture(paper);
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(70, 70);
+  texture.repeat.set(12, 12);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
   return texture;
 }
 
-function createTerrain() {
-  const size = CONFIG.worldRadius * 2 + 190;
-  const geometry = new THREE.PlaneGeometry(size, size, 240, 240);
-  geometry.rotateX(-Math.PI / 2);
+const CHUNK_SIZE = 88;                       // yer bo'lagining o'lchami
+const CHUNK_CELLS = CHUNK_SIZE / FIELD_CELL; // bo'lak balandlik jadvalining kataklariga aniq tushadi
 
-  const points = geometry.attributes.position;
-  const colors = new Float32Array(points.count * 3);
-  const lush = new THREE.Color('#4f8233');
-  const shade = new THREE.Color('#37632b');
-  const dry = new THREE.Color('#8a9648');
-  const dirt = new THREE.Color('#6e5a3b');
-  const color = new THREE.Color();
-
-  for (let i = 0; i < points.count; i++) {
-    const x = points.getX(i), z = points.getZ(i);
-    points.setY(i, terrainHeight(x, z));
-
-    // Bir nechta shovqin qatlami bilan o't, quruq joy va tuproq ranglarini aralashtiramiz
-    color.lerpColors(lush, shade, smoothstep(layeredNoise(x * 0.05, z * 0.05), 0.35, 0.65));
-    color.lerp(dry, smoothstep(layeredNoise(x * 0.02 + 40, z * 0.02 + 40), 0.52, 0.72) * 0.75);
-    color.lerp(dirt, smoothstep(layeredNoise(x * 0.09 + 80, z * 0.09 + 80), 0.62, 0.74) * 0.8);
-    color.toArray(colors, i * 3);
+/** Yer bo'laklari ustidan yuradi: faqat dunyoga tegishli bo'laklar uchun fn(originX, originZ) chaqiriladi. */
+function forEachChunk(callback) {
+  for (let originZ = -FIELD_HALF; originZ < FIELD_HALF; originZ += CHUNK_SIZE) {
+    for (let originX = -FIELD_HALF; originX < FIELD_HALF; originX += CHUNK_SIZE) {
+      const nearestX = clamp(0, originX, originX + CHUNK_SIZE), nearestZ = clamp(0, originZ, originZ + CHUNK_SIZE);
+      if (Math.hypot(nearestX, nearestZ) < CONFIG.worldRadius + 95) callback(originX, originZ);
+    }
   }
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geometry.computeVertexNormals();
+}
 
+function createChunkPlane(originX, originZ, y = 0) {
+  const geometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, CHUNK_CELLS, CHUNK_CELLS);
+  geometry.rotateX(-Math.PI / 2);
+  geometry.translate(originX + CHUNK_SIZE / 2, y, originZ + CHUNK_SIZE / 2);
+  return geometry;
+}
+
+const GROUND_COLORS = {
+  lush: new THREE.Color('#4f8233'),
+  shade: new THREE.Color('#37632b'),
+  dry: new THREE.Color('#8a9648'),
+  dirt: new THREE.Color('#6e5a3b'),
+  sand: new THREE.Color('#a89a6c'),
+  mud: new THREE.Color('#4d4630'),
+};
+
+/** Bir nechta shovqin qatlami bilan o't, quruq joy, tuproq va qirg'oq ranglarini aralashtiradi. */
+function groundColor(x, y, z, color) {
+  const { lush, shade, dry, dirt, sand, mud } = GROUND_COLORS;
+  color.lerpColors(lush, shade, smoothstep(layeredNoise(x * 0.05, z * 0.05), 0.35, 0.65));
+  color.lerp(dry, smoothstep(layeredNoise(x * 0.02 + 40, z * 0.02 + 40), 0.52, 0.72) * 0.75);
+  color.lerp(dirt, smoothstep(layeredNoise(x * 0.09 + 80, z * 0.09 + 80), 0.62, 0.74) * 0.8);
+  const aboveWater = y - WATER_LEVEL;
+  color.lerp(sand, 1 - smoothstep(aboveWater, 0.15, 1.3));
+  color.lerp(mud, 1 - smoothstep(aboveWater, -0.7, 0.14));
+}
+
+/** Yer bo'laklarga bo'linadi: kameraga ko'rinmaydigan bo'laklar chizilmaydi. */
+function createTerrain() {
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, map: createGrassTexture() });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.receiveShadow = true;
-  scene.add(mesh);
+  const color = new THREE.Color();
+  const normal = new THREE.Vector3();
+
+  forEachChunk((originX, originZ) => {
+    const geometry = createChunkPlane(originX, originZ);
+    const points = geometry.attributes.position;
+    const normals = geometry.attributes.normal;
+    const colors = new Float32Array(points.count * 3);
+
+    for (let i = 0; i < points.count; i++) {
+      const x = points.getX(i), z = points.getZ(i);
+      const y = terrainHeight(x, z);
+      points.setY(i, y);
+      // Normal balandlik jadvalidan olinadi, shuning uchun qo'shni bo'laklar chegarasi ko'rinmaydi
+      normal.set(
+        terrainHeight(x - FIELD_CELL, z) - terrainHeight(x + FIELD_CELL, z),
+        FIELD_CELL * 2,
+        terrainHeight(x, z - FIELD_CELL) - terrainHeight(x, z + FIELD_CELL),
+      ).normalize();
+      normals.setXYZ(i, normal.x, normal.y, normal.z);
+      groundColor(x, y, z, color);
+      color.toArray(colors, i * 3);
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.computeBoundingSphere();
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+  });
+}
+
+/* ==========================================================================
+   SUV: daryo va ko'llar yuzasi
+   ========================================================================== */
+
+const waterMaterial = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  fog: true,
+  uniforms: {
+    ...THREE.UniformsLib.fog,
+    time: skyMaterial.uniforms.time,
+    topColor: skyMaterial.uniforms.topColor,
+    horizonColor: skyMaterial.uniforms.horizonColor,
+    sunDirection: skyMaterial.uniforms.sunDirection,
+    deepColor: { value: new THREE.Color('#1d4a52') },
+    shallowColor: { value: new THREE.Color('#4f8a78') },
+  },
+  vertexShader: /* glsl */ `
+    attribute float depth;
+    varying vec3 vWorld;
+    varying float vDepth;
+    #include <fog_pars_vertex>
+    void main() {
+      vDepth = depth;
+      vec4 world = modelMatrix * vec4(position, 1.0);
+      vWorld = world.xyz;
+      vec4 mvPosition = viewMatrix * world;
+      gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform float time;
+    uniform vec3 topColor, horizonColor, sunDirection, deepColor, shallowColor;
+    varying vec3 vWorld;
+    varying float vDepth;
+    #include <fog_pars_fragment>
+
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float noise(vec2 p) {
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x),
+                 mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+    }
+    // Uch xil o'lchamdagi to'lqinlar turli tomonga siljiydi
+    float waves(vec2 p) {
+      return noise(p * 0.5 + vec2(time * 0.32, time * 0.2)) * 0.6
+           + noise(p * 1.3 - vec2(time * 0.46, -time * 0.28)) * 0.3
+           + noise(p * 3.1 + time * 0.7) * 0.1;
+    }
+
+    void main() {
+      vec2 p = vWorld.xz;
+      float height = waves(p);
+      vec3 normal = normalize(vec3(
+        (height - waves(p + vec2(0.3, 0.0))) * 0.55, 1.0,
+        (height - waves(p + vec2(0.0, 0.3))) * 0.55));
+
+      vec3 toCamera = normalize(cameraPosition - vWorld);
+      vec3 mirrored = reflect(-toCamera, normal);
+      float fresnel = pow(1.0 - max(dot(toCamera, normal), 0.0), 3.0);
+
+      vec3 sky = mix(horizonColor, topColor, pow(clamp(mirrored.y, 0.0, 1.0), 0.6));
+      vec3 color = mix(shallowColor, deepColor, smoothstep(0.0, 1.8, vDepth));
+      color = mix(color, sky, 0.18 + fresnel * 0.72);
+      color += vec3(1.0, 0.92, 0.75) * pow(max(dot(mirrored, sunDirection), 0.0), 220.0) * 2.2;
+
+      // Qirg'oqdagi ko'pik va sayozda suvning shaffofligi
+      float foam = smoothstep(0.2, 0.02, vDepth + (height - 0.5) * 0.22);
+      color = mix(color, vec3(0.92, 0.95, 0.92), foam * 0.55);
+      float alpha = mix(0.4, 0.93, smoothstep(0.0, 1.3, vDepth));
+
+      gl_FragColor = vec4(color, max(alpha, foam * 0.7));
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      #include <fog_fragment>
+    }`,
+});
+
+/** Suv yuzasi faqat suv bor bo'laklarda yasaladi. */
+function createWater() {
+  forEachChunk((originX, originZ) => {
+    const geometry = createChunkPlane(originX, originZ, WATER_LEVEL);
+    const points = geometry.attributes.position;
+    const depths = new Float32Array(points.count);
+    let hasWater = false;
+    for (let i = 0; i < points.count; i++) {
+      const depth = waterDepth(points.getX(i), points.getZ(i));
+      depths[i] = Math.max(depth, 0);
+      if (depth > 0) hasWater = true;
+    }
+    if (!hasWater) return;
+    geometry.setAttribute('depth', new THREE.BufferAttribute(depths, 1));
+    scene.add(new THREE.Mesh(geometry, waterMaterial));
+  });
 }
 
 /* ==========================================================================
@@ -741,11 +1005,11 @@ function pushOutOfObstacles(position, radius) {
 
 function pineGeometry() {
   return merge(
-    cylinder(0.16, 0.3, 3, '#5a3d28', [0, 1.5, 0]),
-    cone(2.5, 3.6, '#2f5f33', [0, 3.6, 0]),
-    cone(2.05, 3.2, '#35693a', [0, 5.3, 0]),
-    cone(1.55, 2.8, '#3c7442', [0, 6.9, 0]),
-    cone(1, 2.4, '#458049', [0, 8.4, 0]),
+    cylinder(0.16, 0.3, 4, '#5a3d28', [0, 2, 0]),
+    cone(2.5, 3.6, '#2f5f33', [0, 4.5, 0]),
+    cone(2.05, 3.2, '#35693a', [0, 6.2, 0]),
+    cone(1.55, 2.8, '#3c7442', [0, 7.8, 0]),
+    cone(1, 2.4, '#458049', [0, 9.3, 0]),
   );
 }
 
@@ -836,7 +1100,7 @@ const detailTiles = [];
 
 /**
  * Ro'yxatdagi har bir nuqtaga geometriyaning nusxasini qo'yadi.
- * @param items {x, z, scale, tint?, sink?} ko'rinishidagi massiv
+ * @param items {x, z, scale, tint?, sink?, y?} ko'rinishidagi massiv (y berilsa, aynan shu balandlikka qo'yiladi)
  * @param detail true bo'lsa, uzoqdagi hududlar o'chirib qo'yiladi
  */
 function addInstances(geometry, items, { castShadow = true, detail = false } = {}) {
@@ -852,7 +1116,7 @@ function addInstances(geometry, items, { castShadow = true, detail = false } = {
   for (const tileItems of tiles.values()) {
     const mesh = new THREE.InstancedMesh(geometry, lowPolyMaterial, tileItems.length);
     tileItems.forEach((item, index) => {
-      dummy.position.set(item.x, terrainHeight(item.x, item.z) - (item.sink ?? 0.05), item.z);
+      dummy.position.set(item.x, item.y ?? terrainHeight(item.x, item.z) - (item.sink ?? 0.05), item.z);
       dummy.rotation.set(randRange(-0.04, 0.04), Math.random() * TAU, randRange(-0.04, 0.04));
       dummy.scale.setScalar(item.scale);
       dummy.updateMatrix();
@@ -877,22 +1141,15 @@ function updateDetailTiles() {
   }
 }
 
-/** Dunyo bo'ylab tekis taqsimlangan tasodifiy nuqta. */
-function randomPoint(maxRadius) {
-  const angle = Math.random() * TAU;
-  const radius = Math.sqrt(Math.random()) * maxRadius;
-  return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius };
-}
-
 function createForest() {
   const reach = CONFIG.worldRadius + 70;
   const trees = { pine: [], oak: [], birch: [] };
 
   // Daraxtlar: shovqin yordamida quyuq changalzorlar va ochiq sayhonliklar hosil bo'ladi
-  for (let attempt = 0; attempt < 5000; attempt++) {
+  for (let attempt = 0; attempt < 11000; attempt++) {
     const { x, z } = randomPoint(reach);
     const fromCenter = Math.hypot(x, z);
-    if (fromCenter < CONFIG.spawnClearing) continue;
+    if (fromCenter < CONFIG.spawnClearing || !isDryLand(x, z)) continue;
     const insideWorld = fromCenter < CONFIG.worldRadius;
     if (insideWorld && layeredNoise(x * 0.022 + 60, z * 0.022 + 60) < 0.44) continue;
     if (!isSpotFree(x, z, insideWorld ? 3.2 : 2.9)) continue;
@@ -910,16 +1167,16 @@ function createForest() {
 
   // Toshlar va to'nkalar: ustidan o'tib bo'lmaydi
   const rocks = [], stumps = [];
-  for (let i = 0; i < 190; i++) {
+  for (let i = 0; i < 420; i++) {
     const { x, z } = randomPoint(reach);
-    if (Math.hypot(x, z) < 7 || !isSpotFree(x, z, 1.6)) continue;
+    if (Math.hypot(x, z) < 7 || !isDryLand(x, z) || !isSpotFree(x, z, 1.6)) continue;
     const scale = randRange(0.5, 2);
     rocks.push({ x, z, scale, sink: 0.1 * scale });
     addObstacle(x, z, scale * 0.95, terrainHeight(x, z) + scale * 0.95);
   }
-  for (let i = 0; i < 45; i++) {
+  for (let i = 0; i < 130; i++) {
     const { x, z } = randomPoint(CONFIG.worldRadius);
-    if (Math.hypot(x, z) < 7 || !isSpotFree(x, z, 1.5)) continue;
+    if (Math.hypot(x, z) < 7 || !isDryLand(x, z) || !isSpotFree(x, z, 1.5)) continue;
     const scale = randRange(0.8, 1.3);
     stumps.push({ x, z, scale });
     addObstacle(x, z, 0.5 * scale, terrainHeight(x, z) + 0.7 * scale);
@@ -929,22 +1186,61 @@ function createForest() {
 
   // Butalar, o'tlar va gullar: ular orasidan bemalol o'tish mumkin
   const scatter = (count, radius, describe) =>
-    Array.from({ length: count }, () => ({ ...randomPoint(radius), ...describe() }));
+    Array.from({ length: count }, () => ({ ...randomPoint(radius), ...describe() }))
+      .filter(({ x, z }) => isDryLand(x, z));
 
-  const bushes = scatter(420, reach, () => ({ scale: randRange(0.7, 1.7) }))
+  const bushes = scatter(950, reach, () => ({ scale: randRange(0.7, 1.7) }))
     .filter(({ x, z }) => Math.hypot(x, z) > 8); // boshlang'ich nuqtada ko'rishni to'smasin
   addInstances(bushGeometry(), bushes);
-  addInstances(grassTuftGeometry(), scatter(20000, CONFIG.worldRadius + 25, () => ({
+  addInstances(grassTuftGeometry(), scatter(58000, CONFIG.worldRadius + 25, () => ({
     scale: randRange(0.8, 1.9),
     tint: new THREE.Color().setScalar(randRange(0.75, 1.1)),
   })), { castShadow: false, detail: true });
 
   const petals = ['#f4d04e', '#f7f3ea', '#b98be0', '#ee8fa8'].map((hex) => new THREE.Color(hex));
-  addInstances(flowerGeometry(), scatter(1100, CONFIG.worldRadius, () => ({
+  addInstances(flowerGeometry(), scatter(3200, CONFIG.worldRadius, () => ({
     scale: randRange(0.9, 1.5),
     tint: pick(petals),
   })), { castShadow: false, detail: true });
-  addInstances(mushroomGeometry(), scatter(220, CONFIG.worldRadius, () => ({ scale: randRange(0.8, 1.8) })), { detail: true });
+  addInstances(mushroomGeometry(), scatter(640, CONFIG.worldRadius, () => ({ scale: randRange(0.8, 1.8) })), { detail: true });
+}
+
+function reedGeometry() {
+  return merge(
+    cone(0.05, 1.5, '#5f8a3c', [0, 0.72, 0], [0.05, 0, 0.06], 3),
+    cone(0.05, 1.8, '#6f9a44', [0.14, 0.86, 0.06], [-0.06, 0, -0.08], 3),
+    cone(0.05, 1.3, '#527c35', [-0.12, 0.62, -0.08], [0.08, 0, 0.1], 3),
+    cylinder(0.012, 0.012, 2, '#6f8a48', [0.03, 1, -0.12], [0, 0, 0], 3),
+    cylinder(0.05, 0.05, 0.3, '#5a3a22', [0.03, 2, -0.12], [0, 0, 0], 5),
+  );
+}
+
+function lilyGeometry() {
+  return merge(
+    cylinder(0.42, 0.42, 0.02, '#3e7f45', [0, 0, 0], [0, 0, 0], 9),
+    cylinder(0.3, 0.3, 0.02, '#4a9150', [0.5, 0, 0.25], [0, 0, 0], 8),
+    cone(0.09, 0.14, '#f3e7ee', [0.05, 0.08, 0.02], [0, 0, 0], 6),
+  );
+}
+
+// Qirg'oq nuqtalari: keyinroq hayvonlar suv ichish uchun shu yerlarga keladi
+const shorePoints = [];
+
+/** Qamishlar va nilufarlar: suv chetini tasodifiy nuqtalar bilan qidirib topamiz. */
+function createShoreline() {
+  const reeds = [], lilies = [];
+  for (let attempt = 0; attempt < 45000; attempt++) {
+    const { x, z } = randomPoint(CONFIG.worldRadius + 40);
+    const depth = waterDepth(x, z);
+    if (depth > -0.45 && depth < 0.5 && Math.random() < 0.6) {
+      reeds.push({ x, z, scale: randRange(0.7, 1.3) });
+    } else if (depth > 0.7 && depth < 2.6 && distanceToLake(x, z) < 0 && Math.random() < 0.09) {
+      lilies.push({ x, z, y: WATER_LEVEL + 0.03, scale: randRange(0.7, 1.4) });
+    }
+    if (depth > -0.9 && depth < -0.3 && Math.hypot(x, z) < CONFIG.worldRadius - 6) shorePoints.push({ x, z });
+  }
+  addInstances(reedGeometry(), reeds);
+  addInstances(lilyGeometry(), lilies, { castShadow: false });
 }
 
 /* ==========================================================================
@@ -1051,18 +1347,18 @@ function boarModel() {
 
 const SPECIES = {
   deer: {
-    name: 'Bug‘u', points: 25, hp: 2, headDamage: 2, count: 12, model: deerModel(),
+    name: 'Bug‘u', points: 25, hp: 2, headDamage: 2, count: 24, wadeDepth: 0.8, model: deerModel(),
     walkSpeed: 2.1, runSpeed: 11.5, turnRate: 3.2, radius: 0.7,
     senseRange: 30, alertTime: [0.5, 1], stride: 1.5, grazeAngle: 1.35, lieHeight: 0.28,
   },
   rabbit: {
-    name: 'Quyon', points: 15, hp: 1, headDamage: 1, count: 14, model: rabbitModel(),
+    name: 'Quyon', points: 15, hp: 1, headDamage: 1, count: 30, wadeDepth: 0.1, model: rabbitModel(),
     walkSpeed: 1.3, runSpeed: 9.5, turnRate: 6, radius: 0.3, scale: 1.3, hops: true,
     senseRange: 16, alertTime: [0.2, 0.5], stride: 5.5, grazeAngle: 0.55, lieHeight: 0.18,
   },
   boar: {
     // Qalin bosh suyagi: yugurib kelayotgan cho'chqani bitta o'q to'xtatmaydi
-    name: 'Cho‘chqa', points: 40, hp: 3, headDamage: 2, count: 7, model: boarModel(),
+    name: 'Cho‘chqa', points: 40, hp: 3, headDamage: 2, count: 14, wadeDepth: 0.9, model: boarModel(),
     walkSpeed: 1.7, runSpeed: 8.6, turnRate: 3.6, radius: 0.75,
     senseRange: 24, alertTime: [0.4, 0.7], stride: 2.8, grazeAngle: 0.7, lieHeight: 0.38,
     aggressive: true, damage: 20, biteRange: 2, giveUpRange: 60,
@@ -1120,7 +1416,7 @@ class Animal {
     for (let attempt = 0; attempt < 40; attempt++) {
       ({ x, z } = randomPoint(CONFIG.worldRadius - 6));
       const farEnough = Math.hypot(x - player.pos.x, z - player.pos.z) > minDistance;
-      if (farEnough && isSpotFree(x, z, this.spec.radius + 0.3)) break;
+      if (farEnough && isDryLand(x, z) && isSpotFree(x, z, this.spec.radius + 0.3)) break;
     }
     this.pos.set(x, terrainHeight(x, z), z);
     this.root.visible = true;
@@ -1278,7 +1574,9 @@ class Animal {
   steerAroundObstacles() {
     const aheadX = this.pos.x + Math.sin(this.wantedHeading) * 2.6;
     const aheadZ = this.pos.z + Math.cos(this.wantedHeading) * 2.6;
-    if (!isSpotFree(aheadX, aheadZ, this.spec.radius + 0.4)) this.wantedHeading += this.avoidSide * 1.1;
+    const blocked = !isSpotFree(aheadX, aheadZ, this.spec.radius + 0.4)
+      || waterDepth(aheadX, aheadZ) > this.spec.wadeDepth;
+    if (blocked) this.wantedHeading += this.avoidSide * 1.1;
   }
 
   move(dt, speedGoal) {
@@ -1289,8 +1587,12 @@ class Animal {
     this.heading += turn;
     this.speed = damp(this.speed, speedGoal, 6, dt);
 
-    pos.x += Math.sin(this.heading) * this.speed * dt;
-    pos.z += Math.cos(this.heading) * this.speed * dt;
+    const nextX = pos.x + Math.sin(this.heading) * this.speed * dt;
+    const nextZ = pos.z + Math.cos(this.heading) * this.speed * dt;
+    if (waterDepth(nextX, nextZ) < spec.wadeDepth + 0.15) {
+      pos.x = nextX;
+      pos.z = nextZ;
+    }
     pushOutOfObstacles(pos, spec.radius);
 
     const fromCenter = Math.hypot(pos.x, pos.z);
@@ -1405,7 +1707,9 @@ function updatePlayer(dt) {
   const moving = forward !== 0 || strafe !== 0;
   const aiming = input.aiming && weapon.reloadLeft <= 0;
   const sprinting = moving && !aiming && (keys.ShiftLeft || keys.ShiftRight);
-  const speed = aiming ? cfg.aimSpeed : sprinting ? cfg.sprintSpeed : cfg.walkSpeed;
+  // Suvda qadam og'irlashadi
+  const wading = clamp(waterDepth(player.pos.x, player.pos.z) / MAX_WADE_DEPTH, 0, 1);
+  const speed = (aiming ? cfg.aimSpeed : sprinting ? cfg.sprintSpeed : cfg.walkSpeed) * (1 - wading * 0.55);
 
   // Bosilgan tugmalarni qarash yo'nalishiga nisbatan dunyo yo'nalishiga aylantiramiz
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
@@ -1415,8 +1719,13 @@ function updatePlayer(dt) {
   player.velocity.x = damp(player.velocity.x, (wishX / length) * (moving ? speed : 0), 10, dt);
   player.velocity.z = damp(player.velocity.z, (wishZ / length) * (moving ? speed : 0), 10, dt);
 
-  player.pos.x += player.velocity.x * dt;
-  player.pos.z += player.velocity.z * dt;
+  // Har bir o'q alohida tekshiriladi: chuqur suv bo'ylab sirpanib yurish mumkin
+  const nextX = player.pos.x + player.velocity.x * dt;
+  const nextZ = player.pos.z + player.velocity.z * dt;
+  const blockedX = waterDepth(nextX, player.pos.z) > MAX_WADE_DEPTH;
+  const blockedZ = waterDepth(player.pos.x, nextZ) > MAX_WADE_DEPTH;
+  if (!blockedX) player.pos.x = nextX;
+  if (!blockedZ) player.pos.z = nextZ;
   pushOutOfObstacles(player.pos, cfg.radius);
 
   // Dunyo chegarasi
@@ -1426,7 +1735,8 @@ function updatePlayer(dt) {
     player.pos.x *= scale;
     player.pos.z *= scale;
   }
-  player.pos.y = terrainHeight(player.pos.x, player.pos.z) + cfg.eyeHeight;
+  // Chuqurroq joyda o'yinchi loyga botmaydi: boshi suvdan yetarlicha baland qoladi
+  player.pos.y = Math.max(terrainHeight(player.pos.x, player.pos.z), WATER_LEVEL - 0.55) + cfg.eyeHeight;
 
   // Hayvonlar shovqinni eshitadi: turgan odamni kechroq, yugurganni ertaroq sezadi
   player.noise = !moving ? 0.55 : sprinting ? 1.5 : aiming ? 0.7 : 1;
@@ -1435,7 +1745,10 @@ function updatePlayer(dt) {
   const groundSpeed = Math.hypot(player.velocity.x, player.velocity.z);
   const previousStep = Math.floor(player.stepPhase / Math.PI);
   player.stepPhase += groundSpeed * 1.15 * dt;
-  if (Math.floor(player.stepPhase / Math.PI) !== previousStep) sound.footstep(sprinting);
+  if (Math.floor(player.stepPhase / Math.PI) !== previousStep) {
+    if (wading > 0.05) sound.splash();
+    else sound.footstep(sprinting);
+  }
   const bob = Math.sin(player.stepPhase * 2) * 0.035 * clamp(groundSpeed / cfg.walkSpeed, 0, 1.3) * (1 - player.aim * 0.7);
 
   // Mo'ljalga olish: ko'rish burchagi torayadi
@@ -1458,11 +1771,12 @@ function updatePlayer(dt) {
   );
 
   ui.crosshair.style.setProperty('--gap', `${lerp(9 + groundSpeed * 1.1, 3, player.aim)}px`);
-  setHint(hintText(fromCenter));
+  setHint(hintText(fromCenter, moving && (blockedX || blockedZ)));
 }
 
-function hintText(fromCenter) {
+function hintText(fromCenter, blockedByWater) {
   if (weapon.ammo === 0 && weapon.reloadLeft <= 0) return 'O‘q tugadi: R tugmasini bosing';
+  if (blockedByWater) return 'Bu yer juda chuqur: sayoz joyni qidiring';
   if (fromCenter > CONFIG.worldRadius - 2) return 'O‘rmon chegarasi: ortga qayting';
   return null;
 }
@@ -1563,11 +1877,12 @@ scene.add(muzzleLight);
 
 const raycaster = new THREE.Raycaster();
 
-/** Nur yerga qaysi masofada tegishini bosqichma-bosqich tekshiradi. */
+/** Nur yerga yoki suv yuzasiga qaysi masofada tegishini bosqichma-bosqich tekshiradi. */
 function rayToGround(origin, direction, maxDistance) {
   for (let t = 1; t < maxDistance; t += 1) {
     const x = origin.x + direction.x * t, z = origin.z + direction.z * t;
-    if (origin.y + direction.y * t < terrainHeight(x, z)) return t;
+    const y = origin.y + direction.y * t;
+    if (y < WATER_LEVEL || y < terrainHeight(x, z)) return t;
   }
   return Infinity;
 }
@@ -1634,7 +1949,14 @@ function fire() {
   } else if (Math.min(obstacleAt, groundAt) < cfg.range) {
     const hitsTree = obstacleAt < groundAt;
     const point = origin.clone().addScaledVector(direction, Math.min(obstacleAt, groundAt));
-    burst(point, hitsTree ? '#6b4a2e' : '#6f6a45', 8, 2.5);
+    const hitsWater = !hitsTree && point.y < WATER_LEVEL + 0.5 && waterDepth(point.x, point.z) > 0;
+    if (hitsWater) {
+      point.y = WATER_LEVEL;
+      burst(point, '#dcebf0', 14, 3);
+      sound.splash();
+    } else {
+      burst(point, hitsTree ? '#6b4a2e' : '#6f6a45', 8, 2.5);
+    }
   }
 
   // O'q ovozi atrofdagi hayvonlarni cho'chitadi
@@ -1887,6 +2209,9 @@ const sound = {
   },
   footstep(sprinting) {
     this.noiseHit({ type: 'bandpass', from: randRange(500, 900), to: 300, volume: sprinting ? 0.16 : 0.09, duration: 0.09 });
+  },
+  splash() {
+    this.noiseHit({ type: 'bandpass', from: randRange(1100, 1900), to: 500, volume: 0.2, duration: 0.16 });
   },
   hurt() {
     this.tone({ type: 'triangle', from: 170, to: 60, volume: 0.7, duration: 0.3 });
@@ -2330,7 +2655,9 @@ ui.settingsCloseBtn.addEventListener('click', () => { ui.settings.hidden = true;
    ========================================================================== */
 
 createTerrain();
+createWater();
 createForest();
+createShoreline();
 createAnimals();
 applyQuality();
 
