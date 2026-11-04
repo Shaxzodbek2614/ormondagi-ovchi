@@ -31,6 +31,7 @@ function buildStartMessage() {
   return {
     t: 'start',
     setup: network.roundSetup,
+    spawns: network.spawns,
     teamMission: game.activeMission?.id ?? null,
     goals: game.missions.map(({ text, goal, progress, reward }) => ({ text, goal, progress, reward })),
     timeLeft: game.timeLeft,
@@ -48,29 +49,43 @@ function beginTeamRound(setup, teamMission) {
 
   const members = [...network.roster.values()];
   members.forEach(addTeamMate);
+  hunters.length = 0;
+  hunters.push(player, ...members.map((member) => member.hunter).filter((hunter) => hunter && hunter !== player));
   for (const member of members) {
     if (member.hunter) member.hunter.down = false;
     member.lastSeen = performance.now(); // xonada kutilgan vaqt uzilish deb hisoblanmasin
   }
-  const spot = teamSpawnPoint(members.findIndex((member) => member.id === network.myId));
-  player.pos.x = spot.x;
-  player.pos.z = spot.z;
   game.reviveProgress = 0;
+  game.myRole = null;
+  game.marks = [];
+  game.teamStatus = null;
+  renderTeamStatus(null);
   game.pings = [];
   game.menuOpen = true; // o'yinchi tugmani bosmaguncha boshqaruv yoqilmaydi
   game.state = 'playing';
   ui.lobby.hidden = true;
   ui.hud.hidden = false;
   viewModel.visible = true;
-  ui.pauseNote.textContent = 'Raund boshlandi.';
+  ui.pauseNote.textContent = teamMission?.brief ?? 'Raund boshlandi.';
   ui.pause.hidden = false;
+}
+
+function moveToSpawn(spawn) {
+  player.pos.x = spawn?.x ?? 0;
+  player.pos.z = spawn?.z ?? 0;
 }
 
 /** Xost: raundni hamma uchun boshlaydi. */
 function startTeamRound() {
-  const setup = { ...profile.setup };
-  beginTeamRound(setup, network.selectedTeamMission);
-  network.selectedTeamMission?.prepare?.();
+  const mission = network.selectedTeamMission ?? null;
+  if (network.roster.size < (mission?.minPlayers ?? 1)) {
+    setLobbyStatus(`Bu vazifa uchun kamida ${mission.minPlayers} kishi kerak.`);
+    return;
+  }
+  beginTeamRound(mission?.setup ?? { ...profile.setup }, mission);
+  mission?.prepare?.();
+  assignRoles(mission);
+  moveToSpawn(network.spawns[HOST_ID]);
   broadcast(buildStartMessage());
   requestLock();
 }
@@ -102,6 +117,8 @@ function encodeAnimals(viewer) {
 }
 
 function sendWorld() {
+  game.teamStatus = collectTeamStatus();
+  renderTeamStatus(game.teamStatus);
   const players = [...network.roster.values()].map((member) => [
     member.id, member.id === HOST_ID ? localPlayerState() : member.lastState ?? null,
   ]);
@@ -111,7 +128,7 @@ function sendWorld() {
     score: game.score,
     wind: +wind.angle.toFixed(2),
     goals: game.missions.map((goal) => goal.progress),
-    extra: game.teamStatus ?? null,
+    status: game.teamStatus,
     players,
   };
   for (const member of network.roster.values()) {
@@ -190,6 +207,7 @@ const HOST_MESSAGES = {
 
   ping(member, { x, y, z }) {
     if (![x, y, z].every(isNumber)) return;
+    game.activeMission?.onPing?.(x, z);
     const message = { t: 'ping', id: member.id, x, y, z, label: labelNear(x, z) };
     broadcast(message);
     showPing(message);
@@ -218,6 +236,9 @@ const CLIENT_MESSAGES = {
   roster({ roster }) {
     applyRoster(roster);
   },
+  task({ text }) {
+    setLobbyStatus(`Xost tanladi: ${String(text).slice(0, 40)}`);
+  },
   left({ name, roster }) {
     applyRoster(roster);
     showPopup(`${cleanName(name)} chiqib ketdi`);
@@ -231,6 +252,7 @@ const CLIENT_MESSAGES = {
     }));
     game.timeLeft = message.timeLeft;
     updateMissionHud();
+    moveToSpawn(message.spawns?.[network.myId]);
     // Hayvonlarni xostdan kelgan holat bilan ko'rsatamiz
     for (const animal of animals) {
       animal.net = null;
@@ -252,7 +274,7 @@ const CLIENT_MESSAGES = {
       }
     });
     if (changed) updateMissionHud();
-    game.teamStatus = message.extra;
+    renderTeamStatus(message.status);
     for (const [id, state] of message.players) {
       const member = network.roster.get(String(id));
       if (member?.hunter && member.hunter !== player && state) member.hunter.applyState(state);
@@ -303,7 +325,7 @@ function reviveSelf() {
 /** Xost: hamma yiqilsa, raund tugaydi. */
 function checkTeamWipe() {
   if (!network.isHost || game.mode !== 'team' || game.state !== 'playing') return;
-  if (hunters.every((hunter) => hunter.down)) endRound('Butun jamoa yiqildi');
+  if (hunters.filter((hunter) => !hunter.immobile).every((hunter) => hunter.down)) endRound('Butun jamoa yiqildi');
 }
 
 function nearestDownedMate() {
@@ -375,9 +397,16 @@ function updateMarkers() {
   game.pings = game.pings.filter((ping) => ping.until > now);
 
   const items = [];
+  for (const id of game.marks ?? []) {
+    const animal = animals[id];
+    if (animal?.alive) {
+      items.push({ point: animal.pos, color: '#ff7a5c', text: `◎ Nishon · ${Math.round(animal.pos.distanceTo(player.pos))} m` });
+    }
+  }
   for (const member of network.roster.values()) {
     if (!member.hunter || member.hunter === player) continue;
     const distance = Math.round(member.hunter.pos.distanceTo(player.pos));
+    if (distance < 25 && !member.hunter.down) continue; // yaqinda boshi ustidagi nom yetarli
     items.push({
       point: member.hunter.pos, color: HUNTER_COLORS[member.colorIndex % HUNTER_COLORS.length],
       text: `${member.hunter.down ? 'Yordam! ' : ''}${member.name} · ${distance} m`,

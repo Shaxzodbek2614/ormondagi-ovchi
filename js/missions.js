@@ -229,6 +229,7 @@ function startMission(mission) {
 function updateMission(dt) {
   const mission = game.activeMission;
   mission.tick?.(dt);
+  if (game.state !== 'playing') return;
 
   game.tipClock -= dt;
   if (game.tipClock <= 0 && game.tipIndex < (mission.tips?.length ?? 0)) {
@@ -252,20 +253,22 @@ function settleMission(won) {
   const fast = game.timeLeft >= mission.fastLeft;
   const unhurt = game.damageTaken === 0;
   const stars = 1 + (fast ? 1 : 0) + (unhurt ? 1 : 0);
-  const previous = profile.missions[mission.id] ?? 0;
+  const record = game.mode === 'team' ? profile.teamMissions : profile.missions;
+  const previous = record[mission.id] ?? 0;
   const coins = (previous === 0 ? mission.reward : 0) + Math.max(0, stars - previous) * 10;
-  profile.missions[mission.id] = Math.max(stars, previous);
+  record[mission.id] = Math.max(stars, previous);
 
   const index = MISSIONS.indexOf(mission);
   return {
     stars,
     coins,
-    next: MISSIONS[index + 1],
+    next: index >= 0 ? MISSIONS[index + 1] : null,
     rows: [['Tez bajarildi', fast ? 'Ha' : 'Yo‘q'], ['Zarar olinmadi', unhurt ? 'Ha' : 'Yo‘q']],
   };
 }
 
 function showMissions() {
+  ui.missionsTitle.textContent = 'Missiyalar';
   ui.missionCards.replaceChildren(...MISSIONS.map((mission, index) => {
     const unlocked = isMissionUnlocked(index);
     const row = document.createElement('li');

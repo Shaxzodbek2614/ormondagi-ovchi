@@ -119,7 +119,8 @@ function updatePlayer(dt) {
     * (moving && wading > 0.05 ? 1.3 : 1)
     * conditions.noise
     * (owns('camo') ? 0.8 : 1)
-    * (player.lampOn && conditions.night ? 1.35 : 1); // tunda chiroq uzoqdan ko'rinadi
+    * (player.lampOn && conditions.night ? 1.35 : 1) // tunda chiroq uzoqdan ko'rinadi
+    * (ROLE_INFO[game.myRole]?.noise ?? 1);
   updateFieldHud(hidden);
 
   // Qadam va bosh tebranishi
@@ -170,6 +171,10 @@ function hintText(fromCenter, blockedByWater) {
 
 /** Hayvon zarbasi: ovchi shu kompyuterdagi o'yinchi bo'lsa, zararni shu yerda hisoblaymiz. */
 function strikeHunter(hunter, amount, attacker) {
+  if (hunter.takeDamage) {
+    hunter.takeDamage(amount);
+    return;
+  }
   if (hunter === player) {
     damagePlayer(amount, attacker);
     return;

@@ -58,6 +58,8 @@ body.free-mouse { cursor: none; }
 #timePlate { top: 18px; left: 50%; transform: translateX(-50%); text-align: center; min-width: 110px; }
 #timePlate.urgent .value { color: var(--danger); }
 #conditionLine { margin-top: 2px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+#teamLine { margin-top: 2px; font-size: 13px; font-weight: 700; color: var(--amber); white-space: nowrap; }
+#teamLine:empty { display: none; }
 
 #missionList { list-style: none; margin: 8px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 1.6; }
 #missionList li { display: flex; justify-content: space-between; gap: 14px; color: var(--ink-soft); }
@@ -312,6 +314,8 @@ kbd {
 }
 .text-field:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
 #roomInput { text-transform: uppercase; letter-spacing: .2em; }
+#teamSiteNote { margin: 10px 0 0; font-size: 14px; line-height: 1.45; color: var(--ink-soft); }
+#teamSiteNote a { color: var(--amber); word-break: break-all; }
 #teamError { min-height: 18px; margin: 8px 0 0; font-size: 13.5px; color: #ffb4a6; }
 #lobbyCode { font: 700 44px var(--ui-font); letter-spacing: .16em; color: var(--amber); }
 .copy-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; }

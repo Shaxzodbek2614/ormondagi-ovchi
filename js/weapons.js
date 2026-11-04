@@ -255,6 +255,9 @@ function registerHit(animal, part, power, point) {
 
 /** Zarbani hayvonga qo'llaydi: yakka o'yinda shu yerda, birga o'ynaganda xostda. */
 function applyHit(animal, part, power, shooter) {
+  const mission = game.activeMission;
+  if (mission?.onHit?.(animal, part, shooter)) return;
+
   // Missiya shartlari uchun hayvon o'q tekkan paytda nima qilayotgani eslab qolinadi
   const moment = {
     headshot: part === 'head',
@@ -262,7 +265,9 @@ function applyHit(animal, part, power, shooter) {
     airborne: animal.state === 'fly',
     shooter,
   };
-  if (animal.takeHit(part, power)) onAnimalKilled(animal, moment);
+  mission?.annotate?.(moment, animal);
+  const finalPower = mission?.adjustPower?.(animal, power, shooter) ?? power;
+  if (animal.takeHit(part, finalPower)) onAnimalKilled(animal, moment);
 }
 
 /** O'q ovozi berilgan masofadagi hayvonlarni cho'chitadi. */
@@ -414,8 +419,9 @@ function startReload() {
 
 function updateWeapon(dt) {
   const { gun } = weapon;
-  viewModel.visible = !player.down;
-  if (player.down) input.fire = false;
+  const unarmed = player.down || ROLE_INFO[game.myRole]?.unarmed;
+  viewModel.visible = !unarmed;
+  if (unarmed) input.fire = false;
   weapon.cooldown = Math.max(0, weapon.cooldown - dt);
 
   if (input.fire) {

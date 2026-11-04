@@ -34,6 +34,7 @@
     <div class="label">Vaqt</div>
     <div class="value" id="timeValue">3:00</div>
     <div id="conditionLine"></div>
+    <div id="teamLine"></div>
   </div>
 
   <div class="plate" id="fieldPlate">
@@ -180,6 +181,7 @@
 <section class="screen" id="team" hidden>
   <div class="card">
     <h2>Birga ov</h2>
+    <p id="teamSiteNote" hidden>Bu sahifada ulanish yopiq. Do‘stlar bilan o‘ynash uchun o‘yinni saytda oching: <a id="teamSiteLink" target="_blank" rel="noopener"></a></p>
     <label class="setting">
       <span class="setting-head">Ismingiz</span>
       <input class="text-field" id="nickInput" maxlength="16" autocomplete="off">
@@ -220,7 +222,7 @@
 <!-- Missiyalar ro'yxati -->
 <section class="screen" id="missions" hidden>
   <div class="card wide">
-    <h2>Missiyalar</h2>
+    <h2 id="missionsTitle">Missiyalar</h2>
     <ul id="missionCards"></ul>
     <button class="secondary" id="missionsBackBtn">Orqaga</button>
   </div>

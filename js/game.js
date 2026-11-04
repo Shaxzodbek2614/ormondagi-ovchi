@@ -43,7 +43,10 @@ const game = {
 
 /** Topshiriq yoki maqsad shu ovga mos keladimi. */
 function goalMatches(goal, animal, moment) {
+  if (goal.custom) return false; // bunday maqsadni missiyaning o'zi hisoblaydi
   if (goal.kind && goal.kind !== animal.kind) return false;
+  if (goal.inZone && !moment.inZone) return false;
+  if (goal.marked && !moment.marked) return false;
   if (goal.headshot && !moment.headshot) return false;
   if (goal.unaware && !moment.unaware) return false;
   if (goal.airborne && !moment.airborne) return false;
@@ -288,7 +291,7 @@ function endRound(reason, won = false) {
   if (accuracyBonus) rows.push(['Aniqlik bonusi', `+${accuracyBonus}`]);
 
   let coins, summary, nextMission = null;
-  if (game.mode === 'mission') {
+  if (game.activeMission) {
     const outcome = settleMission(won);
     coins = outcome.coins;
     nextMission = outcome.next ?? null;
@@ -327,6 +330,6 @@ function endRound(reason, won = false) {
 function updateRound(dt) {
   game.timeLeft = Math.max(0, game.timeLeft - dt);
   updateTimeHud();
-  if (game.mode === 'mission') updateMission(dt);
+  if (game.activeMission) updateMission(dt);
   if (game.state === 'playing' && game.timeLeft === 0) endRound('Vaqt tugadi');
 }

@@ -22,7 +22,16 @@ function saveNickname() {
   saveProfile();
 }
 
+/** Claude sahifasi kabi yopiq muhitda ulanish ishlamaydi, u yerda saytga yo'naltiramiz. */
+function isConnectionBlocked() {
+  return window.self !== window.top;
+}
+
 function showTeamScreen() {
+  const blocked = isConnectionBlocked();
+  ui.teamSiteNote.hidden = !blocked;
+  ui.teamSiteLink.href = ui.teamSiteLink.textContent = TEAM_SITE_URL;
+  ui.createRoomBtn.disabled = ui.joinRoomBtn.disabled = blocked;
   ui.nickInput.value = profile.nickname ?? '';
   ui.teamError.textContent = '';
   ui.menu.hidden = true;
@@ -98,6 +107,7 @@ ui.joinRoomBtn.addEventListener('click', joinTypedRoom);
 ui.copyLinkBtn.addEventListener('click', copyRoomLink);
 ui.lobbyLeaveBtn.addEventListener('click', leaveRoom);
 ui.lobbyStartBtn.addEventListener('click', startTeamRound);
+ui.lobbyTaskBtn.addEventListener('click', showTeamMissions);
 ui.lobbyConditionsBtn.addEventListener('click', () => {
   ui.lobby.hidden = true;
   showSetup();

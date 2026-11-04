@@ -175,6 +175,7 @@ class Animal {
     this.pos.set(x, this.groundLevel(x, z), z);
     this.spawned = true;
     this.root.visible = true;
+    this.root.scale.setScalar(this.spec.scale ?? 1);
     this.root.rotation.set(0, Math.random() * TAU, 0);
     this.heading = this.wantedHeading = this.root.rotation.y;
     this.hp = this.spec.hp;
@@ -186,6 +187,7 @@ class Animal {
     this.earTwitch = 0;
     this.farClock = 0;
     this.rearAmount = 0;
+    this.relentless = false; // true bo'lsa, uzoqlashsa ham quvishni to'xtatmaydi
     this.sightClock = Math.random() * 0.4;
     this.sightBlocked = false;
     this.trackTravel = 0;
@@ -407,10 +409,10 @@ class Animal {
       case 'charge':
         this.headGoal = 0.3;
         this.faceTowards(prey.pos.x, prey.pos.z);
-        if (distance < spec.biteRange) {
+        if (distance < spec.biteRange + (prey.reach ?? 0)) {
           strikeHunter(prey, spec.damage * conditions.damage, this);
           this.setState('recover', spec.recoverTime ?? 1.3);
-        } else if (distance > spec.giveUpRange || game.state !== 'playing') {
+        } else if ((distance > spec.giveUpRange && !this.relentless) || game.state !== 'playing') {
           this.pickWanderTarget();
         }
         return spec.runSpeed;
@@ -853,8 +855,9 @@ function updateAnimals(dt) {
   let attacker = null;
   let attackerDistance = 35;
   for (const animal of animals) {
-    if (animal.dormant) continue;
+    // Mijozda hayvonlarni xost boshqaradi, u yerda uxlab turgani ham uyg'onishi mumkin
     if (network.isClient) animal.updatePuppet(dt);
+    else if (animal.dormant) continue;
     else animal.update(dt);
     if (animal.state !== 'charge' || animal.prey !== player) continue;
     const distance = animal.distanceToPlayer();

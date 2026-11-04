@@ -19,7 +19,7 @@ function turnView(dx, dy) {
 }
 
 function startScoping() {
-  if (!owns('binoculars')) return;
+  if (!owns('binoculars') && game.myRole !== 'observer') return;
   input.scoping = true;
   ui.binoculars.hidden = false;
 }
@@ -92,7 +92,7 @@ const TOUCH_BUTTONS = [
   { id: 'crouch', label: 'Egilish', press: () => { player.crouching = !player.crouching; }, isOn: () => player.crouching },
   { id: 'sprint', label: 'Yugurish', press: () => { input.keys.ShiftLeft = !input.keys.ShiftLeft; }, isOn: () => input.keys.ShiftLeft },
   { id: 'swap', label: 'Qurol', press: cycleWeapon, isAvailable: () => availableWeapons().length > 1 },
-  { id: 'scope', label: 'Durbin', press: startScoping, release: stopScoping, isAvailable: () => owns('binoculars') },
+  { id: 'scope', label: 'Durbin', press: startScoping, release: stopScoping, isAvailable: () => owns('binoculars') || game.myRole === 'observer' },
   { id: 'heal', label: 'Dori', press: useMedkit, isAvailable: () => profile.medkits > 0 },
   { id: 'ping', label: 'Belgi', press: () => placePing(), isAvailable: () => game.mode === 'team' },
   { id: 'revive', label: 'Turg‘izish', press: () => { input.keys.KeyE = true; }, release: () => { input.keys.KeyE = false; }, isAvailable: () => Boolean(game.reviveTarget) },
@@ -187,7 +187,8 @@ ui.againBtn.addEventListener('click', restartRound);
 ui.missionsBtn.addEventListener('click', showMissions);
 ui.missionsBackBtn.addEventListener('click', () => {
   ui.missions.hidden = true;
-  ui.menu.hidden = false;
+  if (network.active) showLobby();
+  else ui.menu.hidden = false;
 });
 ui.resumeBtn.addEventListener('click', resumeRound);
 document.querySelectorAll('[data-return-menu]').forEach((button) => button.addEventListener('click', returnToMenu));
