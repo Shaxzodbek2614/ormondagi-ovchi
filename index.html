@@ -62,6 +62,17 @@
   #timePlate { top: 18px; left: 50%; transform: translateX(-50%); text-align: center; min-width: 110px; }
   #timePlate.urgent .value { color: var(--danger); }
 
+  /* Ovchi uchun ma'lumot: shamol yo'nalishi va qancha shovqin qilinayotgani */
+  #fieldPlate { top: 18px; right: 18px; width: 170px; }
+  .field-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 24px; }
+  .field-row .bar { flex: 1; margin-top: 0; }
+  #windArrow {
+    width: 0; height: 0; border: 8px solid transparent; border-top: 0;
+    border-bottom: 18px solid var(--ink); transform-origin: 50% 60%;
+  }
+  #noiseBar > i { background: var(--amber); transition: transform .15s; }
+  #stanceLine { min-height: 16px; margin-top: 4px; font-size: 12px; color: var(--ink-soft); }
+
   #hpPlate { bottom: 18px; left: 18px; width: 260px; }
   #hpRow { display: flex; justify-content: space-between; align-items: baseline; }
   #hpValue { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -123,6 +134,7 @@
   /* Tor oynalarda ko'rsatkichlar bir-birining ustiga chiqmasin */
   @media (max-width: 640px) {
     #timePlate { left: auto; right: 18px; transform: none; min-width: 0; }
+    #fieldPlate { top: 96px; width: 130px; }
     #killLine { display: none; }
     #scorePlate { min-width: 0; }
     #hpPlate { width: 42%; }
@@ -235,6 +247,12 @@
     <div class="value" id="timeValue">3:00</div>
   </div>
 
+  <div class="plate" id="fieldPlate">
+    <div class="field-row"><span class="label">Shamol</span><i id="windArrow"></i></div>
+    <div class="field-row"><span class="label">Shovqin</span><div class="bar" id="noiseBar"><i></i></div></div>
+    <div id="stanceLine"></div>
+  </div>
+
   <div class="plate" id="hpPlate">
     <div id="hpRow"><span class="label">Jon</span><span id="hpValue">100</span></div>
     <div class="bar" id="hpBar"><i></i></div>
@@ -242,7 +260,7 @@
 
   <div class="plate" id="ammoPlate">
     <div class="label">O‘q</div>
-    <div class="value" id="ammoValue">6 / 6</div>
+    <div class="value" id="ammoValue">6 / 24</div>
     <div id="ammoPips"></div>
     <div class="bar" id="reloadBar"><i></i></div>
   </div>
@@ -272,6 +290,7 @@
       <dt>O‘ng tugma</dt><dd>Mo‘ljalga olish</dd>
       <dt><kbd>R</kbd></dt><dd>Qayta o‘qlash</dd>
       <dt><kbd>Shift</kbd></dt><dd>Yugurish</dd>
+      <dt><kbd>C</kbd></dt><dd>Egilish</dd>
       <dt><kbd>M</kbd></dt><dd>Ovozni o‘chirish</dd>
     </dl>
     <div class="actions">
@@ -354,11 +373,14 @@ const CONFIG = {
     walkSpeed: 6,
     sprintSpeed: 10,
     aimSpeed: 3,
+    crouchSpeed: 2.6,
+    crouchEyeHeight: 1.02,
     maxHp: 100,
     lookSensitivity: 0.0022,
   },
   weapon: {
     magazine: 6,
+    reserve: 24,           // raund boshidagi zaxira o'qlar
     fireDelay: 0.55,       // ikki o'q orasidagi vaqt (soniya)
     reloadTime: 1.8,
     range: 220,
@@ -960,26 +982,32 @@ function createWater() {
 const GRID_CELL = 8;
 const GRID_MARGIN = 3; // to'siq qo'shni kataklarga ham shu zaxira bilan yoziladi
 const obstacleGrid = new Map();
+const coverGrid = new Map(); // butalar: ularning orqasida yashirinish mumkin
 const EMPTY_CELL = [];
 
 const cellKey = (ix, iz) => ix * 4096 + iz;
 
-function cellAt(x, z) {
-  return obstacleGrid.get(cellKey(Math.floor(x / GRID_CELL), Math.floor(z / GRID_CELL))) ?? EMPTY_CELL;
+function cellAt(x, z, grid = obstacleGrid) {
+  return grid.get(cellKey(Math.floor(x / GRID_CELL), Math.floor(z / GRID_CELL))) ?? EMPTY_CELL;
+}
+
+function addToGrid(grid, item) {
+  const reach = item.radius + GRID_MARGIN;
+  for (let ix = Math.floor((item.x - reach) / GRID_CELL); ix <= Math.floor((item.x + reach) / GRID_CELL); ix++) {
+    for (let iz = Math.floor((item.z - reach) / GRID_CELL); iz <= Math.floor((item.z + reach) / GRID_CELL); iz++) {
+      const key = cellKey(ix, iz);
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(item);
+    }
+  }
 }
 
 /** @param top to'siqning yuqori nuqtasi (o'q shundan balandda o'tib ketadi) */
 function addObstacle(x, z, radius, top) {
-  const obstacle = { x, z, radius, top };
-  const reach = radius + GRID_MARGIN;
-  for (let ix = Math.floor((x - reach) / GRID_CELL); ix <= Math.floor((x + reach) / GRID_CELL); ix++) {
-    for (let iz = Math.floor((z - reach) / GRID_CELL); iz <= Math.floor((z + reach) / GRID_CELL); iz++) {
-      const key = cellKey(ix, iz);
-      if (!obstacleGrid.has(key)) obstacleGrid.set(key, []);
-      obstacleGrid.get(key).push(obstacle);
-    }
-  }
+  addToGrid(obstacleGrid, { x, z, radius, top });
 }
+
+const isInCover = (x, z) => cellAt(x, z, coverGrid).some((bush) => Math.hypot(bush.x - x, bush.z - z) < bush.radius);
 
 function isSpotFree(x, z, clearance) {
   return cellAt(x, z).every((o) => Math.hypot(o.x - x, o.z - z) > o.radius + clearance);
@@ -1070,6 +1098,21 @@ function flowerGeometry() {
   );
 }
 
+// O'tlar shamol yo'nalishida tebranadi: siljish vertex shaderga dunyo koordinatasida qo'shiladi
+const grassUniforms = { swayTime: skyMaterial.uniforms.time, swayWind: { value: new THREE.Vector2(0.3, 0) } };
+const grassMaterial = lowPolyMaterial.clone();
+grassMaterial.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, grassUniforms);
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nuniform float swayTime;\nuniform vec2 swayWind;')
+    .replace('#include <project_vertex>', `
+      vec4 mvPosition = instanceMatrix * vec4(transformed, 1.0);
+      float sway = sin(swayTime * 2.2 + mvPosition.x * 0.3 + mvPosition.z * 0.3) * 0.5 + 0.7;
+      mvPosition.xz += swayWind * sway * transformed.y * transformed.y;
+      mvPosition = modelViewMatrix * mvPosition;
+      gl_Position = projectionMatrix * mvPosition;`);
+};
+
 /** O't tutami: pastda to'q, uchida och rangli bir nechta ingichka konus. */
 function grassTuftGeometry() {
   const blades = [];
@@ -1103,7 +1146,7 @@ const detailTiles = [];
  * @param items {x, z, scale, tint?, sink?, y?} ko'rinishidagi massiv (y berilsa, aynan shu balandlikka qo'yiladi)
  * @param detail true bo'lsa, uzoqdagi hududlar o'chirib qo'yiladi
  */
-function addInstances(geometry, items, { castShadow = true, detail = false } = {}) {
+function addInstances(geometry, items, { castShadow = true, detail = false, material = lowPolyMaterial } = {}) {
   const tiles = new Map();
   for (const item of items) {
     const key = `${Math.floor(item.x / TILE_SIZE)},${Math.floor(item.z / TILE_SIZE)}`;
@@ -1114,7 +1157,7 @@ function addInstances(geometry, items, { castShadow = true, detail = false } = {
   const dummy = new THREE.Object3D();
   const color = new THREE.Color();
   for (const tileItems of tiles.values()) {
-    const mesh = new THREE.InstancedMesh(geometry, lowPolyMaterial, tileItems.length);
+    const mesh = new THREE.InstancedMesh(geometry, material, tileItems.length);
     tileItems.forEach((item, index) => {
       dummy.position.set(item.x, item.y ?? terrainHeight(item.x, item.z) - (item.sink ?? 0.05), item.z);
       dummy.rotation.set(randRange(-0.04, 0.04), Math.random() * TAU, randRange(-0.04, 0.04));
@@ -1192,10 +1235,11 @@ function createForest() {
   const bushes = scatter(950, reach, () => ({ scale: randRange(0.7, 1.7) }))
     .filter(({ x, z }) => Math.hypot(x, z) > 8); // boshlang'ich nuqtada ko'rishni to'smasin
   addInstances(bushGeometry(), bushes);
+  for (const { x, z, scale } of bushes) addToGrid(coverGrid, { x, z, radius: scale * 1.1 });
   addInstances(grassTuftGeometry(), scatter(58000, CONFIG.worldRadius + 25, () => ({
     scale: randRange(0.8, 1.9),
     tint: new THREE.Color().setScalar(randRange(0.75, 1.1)),
-  })), { castShadow: false, detail: true });
+  })), { castShadow: false, detail: true, material: grassMaterial });
 
   const petals = ['#f4d04e', '#f7f3ea', '#b98be0', '#ee8fa8'].map((hex) => new THREE.Color(hex));
   addInstances(flowerGeometry(), scatter(3200, CONFIG.worldRadius, () => ({
@@ -1671,23 +1715,27 @@ function fishModel() {
 
 const SPECIES = {
   deer: {
+    track: { type: 'hoof', size: 1, step: 1.5, width: 0.16 },
     name: 'Bug‘u', points: 25, hp: 2, headDamage: 2, count: 24, groupSize: [3, 4], drinks: true, wadeDepth: 0.8, model: deerModel(),
     walkSpeed: 2.1, runSpeed: 11.5, turnRate: 3.2, radius: 0.7,
     senseRange: 30, alertTime: [0.5, 1], stride: 1.5, grazeAngle: 2.05, lieHeight: 0.3,
   },
   rabbit: {
+    track: { type: 'paw', size: 0.5, step: 1.2, width: 0.08 },
     name: 'Quyon', points: 15, hp: 1, headDamage: 1, count: 30, wadeDepth: 0.1, model: rabbitModel(),
     walkSpeed: 1.3, runSpeed: 9.5, turnRate: 6, radius: 0.3, scale: 1.3, hops: true,
     senseRange: 16, alertTime: [0.2, 0.5], stride: 5.5, grazeAngle: 0.8, lieHeight: 0.2,
   },
   boar: {
     // Qalin bosh suyagi: yugurib kelayotgan cho'chqani bitta o'q to'xtatmaydi
+    track: { type: 'hoof', size: 1.1, step: 1.3, width: 0.2 },
     name: 'Cho‘chqa', points: 40, hp: 3, headDamage: 2, count: 14, drinks: true, wadeDepth: 0.9, voice: 'grunt', model: boarModel(),
     walkSpeed: 1.7, runSpeed: 8.6, turnRate: 3.6, radius: 0.75,
     senseRange: 24, alertTime: [0.4, 0.7], stride: 2.8, grazeAngle: 0.75, lieHeight: 0.42,
     aggressive: true, damage: 20, biteRange: 2, giveUpRange: 60,
   },
   fox: {
+    track: { type: 'paw', size: 0.7, step: 1.3, width: 0.1 },
     name: 'Tulki', points: 30, hp: 1, headDamage: 1, count: 12, wadeDepth: 0.3, scale: 0.66, tailWag: 0.25,
     model: canineModel({ back: '#c4632a', belly: '#f2e9dc', sock: '#231a16', tailTip: '#f6f0e6', muzzle: '#f2e9dc', earScale: 1.35, tailScale: 1.25 }),
     walkSpeed: 1.9, runSpeed: 11, turnRate: 7, radius: 0.32, zigzag: true,
@@ -1703,6 +1751,7 @@ const SPECIES = {
     walkSpeed: 1, runSpeed: 1, turnRate: 1, radius: 0.2, senseRange: 0, lieHeight: 0.02,
   },
   wolf: {
+    track: { type: 'paw', size: 1, step: 1.5, width: 0.14 },
     name: 'Bo‘ri', points: 50, hp: 2, headDamage: 2, count: 12, groupSize: [3, 4], wadeDepth: 0.9, tailWag: 0.18, voice: 'growl',
     model: canineModel({ back: '#6d6c6b', belly: '#cbc7be', sock: '#8c8a86', tailTip: '#2f2e2d', muzzle: '#cbc7be' }),
     walkSpeed: 2.4, runSpeed: 10.2, turnRate: 4.5, radius: 0.5,
@@ -1710,6 +1759,7 @@ const SPECIES = {
     aggressive: true, pack: true, damage: 15, biteRange: 1.8, giveUpRange: 70,
   },
   bear: {
+    track: { type: 'paw', size: 1.9, step: 1.5, width: 0.32 },
     name: 'Ayiq', points: 120, hp: 6, headDamage: 2, count: 6, drinks: true, wadeDepth: 1.1, voice: 'growl', model: bearModel(),
     walkSpeed: 1.5, runSpeed: 9.2, turnRate: 2.6, radius: 1.1,
     senseRange: 15, alertTime: [0.6, 0.9], stride: 1.7, grazeAngle: 0.8, lieHeight: 0.62,
@@ -1719,6 +1769,34 @@ const SPECIES = {
 
 const animals = [];
 const ANIMAL_VIEW_DISTANCE = 175;
+let elapsed = 0; // o'yin boshlanganidan beri o'tgan vaqt
+
+// Shamol vaqti-vaqti bilan yo'nalishini o'zgartiradi. Burchak shamol qayerga esayotganini bildiradi.
+const wind = { angle: Math.random() * TAU, target: 0, changeIn: 0 };
+wind.target = wind.angle;
+
+function updateWind(dt) {
+  wind.changeIn -= dt;
+  if (wind.changeIn <= 0) {
+    wind.changeIn = randRange(25, 45);
+    wind.target = wind.angle + randRange(-1.4, 1.4);
+  }
+  wind.angle = damp(wind.angle, wind.target, 0.3, dt);
+  grassUniforms.swayWind.value.set(Math.sin(wind.angle), Math.cos(wind.angle)).multiplyScalar(0.34);
+}
+
+/** Shamol hidni hayvon tomonga olib borsa, u o'yinchini uzoqdan sezadi. Teskari bo'lsa, yaqindan. */
+function windSenseFactor(position) {
+  const dx = position.x - player.pos.x, dz = position.z - player.pos.z;
+  const towardsAnimal = (dx * Math.sin(wind.angle) + dz * Math.cos(wind.angle)) / (Math.hypot(dx, dz) || 1);
+  return 1 + towardsAnimal * (towardsAnimal > 0 ? 0.6 : 0.4);
+}
+
+/** Hayvon bilan o'yinchi orasida daraxt yoki tosh bormi. */
+function isSightBlocked(position, distance) {
+  const direction = { x: (player.pos.x - position.x) / distance, y: 0, z: (player.pos.z - position.z) / distance };
+  return rayToObstacle({ x: position.x, y: position.y + 1, z: position.z }, direction, distance) < distance;
+}
 
 // Oyoqlar qaysi navbatda harakat qiladi (chap old, o'ng old, chap orqa, o'ng orqa)
 const WALK_RHYTHM = [0, 0.5, 0.75, 0.25];
@@ -1809,6 +1887,10 @@ class Animal {
     this.earTwitch = 0;
     this.farClock = 0;
     this.rearAmount = 0;
+    this.sightClock = Math.random() * 0.4;
+    this.sightBlocked = false;
+    this.trackTravel = 0;
+    this.trackSide = 1;
     this.avoidSide = pick([-1, 1]);
     this.target = { x, z };
     this.deadTime = 0;
@@ -1835,6 +1917,17 @@ class Animal {
 
   faceTowards(x, z) {
     this.wantedHeading = Math.atan2(x - this.pos.x, z - this.pos.z);
+  }
+
+  /** Hayvon o'yinchini qaysi masofadan sezadi: shovqin, shamol va ko'rish chizig'iga bog'liq. */
+  senseDistance(dt, distance) {
+    const reach = this.spec.senseRange * player.noise * windSenseFactor(this.pos);
+    this.sightClock -= dt;
+    if (this.sightClock <= 0 && distance < reach * 1.5) {
+      this.sightClock = 0.4;
+      this.sightBlocked = isSightBlocked(this.pos, distance);
+    }
+    return this.sightBlocked ? reach * 0.7 : reach;
   }
 
   /** Hayvon o'yinchini sezdi: bir lahza qotib qaraydi. Aynan shu payt otish uchun qulay. */
@@ -1922,7 +2015,7 @@ class Animal {
   think(dt) {
     const { spec } = this;
     const distance = this.distanceToPlayer();
-    const sensed = distance < spec.senseRange * player.noise;
+    const sensed = distance < this.senseDistance(dt, distance);
     this.stateTime -= dt;
 
     switch (this.state) {
@@ -2088,12 +2181,33 @@ class Animal {
       pos.z *= scale;
     }
 
+    this.leaveTracks(dt);
+
     // Tanani yer qiyaligiga moslab, oyoqlar havoda qolmasligini ta'minlaymiz
     const sinH = Math.sin(this.heading), cosH = Math.cos(this.heading);
     const front = terrainHeight(pos.x + sinH * 0.6, pos.z + cosH * 0.6);
     const back = terrainHeight(pos.x - sinH * 0.6, pos.z - cosH * 0.6);
     this.root.rotation.set(Math.atan2(back - front, 1.2), this.heading, 0);
     pos.y = terrainHeight(pos.x, pos.z);
+  }
+
+  /** Yurgan hayvon yerda iz qoldiradi, yaralangani esa qon tomchilari ham. */
+  leaveTracks(dt) {
+    const { spec, pos } = this;
+    if (!spec.track || !this.root.visible) return;
+    this.trackTravel += this.speed * dt;
+    if (this.trackTravel < spec.track.step) return;
+    this.trackTravel = 0;
+    this.trackSide *= -1;
+
+    const sideX = Math.cos(this.heading) * this.trackSide * spec.track.width;
+    const sideZ = -Math.sin(this.heading) * this.trackSide * spec.track.width;
+    if (waterDepth(pos.x, pos.z) < 0) {
+      tracks[spec.track.type].add(pos.x + sideX, pos.z + sideZ, this.heading, spec.track.size, `${spec.name} izi`);
+    }
+    if (this.hp < spec.hp) {
+      tracks.blood.add(pos.x - sideX, pos.z - sideZ, Math.random() * TAU, randRange(0.7, 1.3), `Yarador ${spec.name.toLowerCase()} qoni`);
+    }
   }
 
   animate(dt) {
@@ -2243,7 +2357,8 @@ class Duck extends Animal {
   think(dt) {
     if (this.state === 'fly') return 0;
     this.stateTime -= dt;
-    if (this.distanceToPlayer() < this.spec.senseRange * player.noise) {
+    const distance = this.distanceToPlayer();
+    if (distance < this.senseDistance(dt, distance)) {
       this.startle();
     } else if (this.stateTime <= 0) {
       const angle = Math.random() * TAU;
@@ -2404,6 +2519,8 @@ const player = {
   pitch: 0,
   hp: CONFIG.player.maxHp,
   noise: 0,      // shovqin darajasi: hayvonlar sezish masofasini shunga ko'paytiradi
+  crouching: false,
+  crouch: 0,     // 0 = tik turgan, 1 = to'liq egilgan
   stepPhase: 0,  // yurishda bosh tebranishi va qadam ovozi uchun
   recoil: 0,     // o'q uzgandagi kamera ko'tarilishi
   shake: 0,      // zarar olgandagi kamera titrashi
@@ -2430,9 +2547,13 @@ function updatePlayer(dt) {
   const moving = forward !== 0 || strafe !== 0;
   const aiming = input.aiming && weapon.reloadLeft <= 0;
   const sprinting = moving && !aiming && (keys.ShiftLeft || keys.ShiftRight);
+  if (sprinting) player.crouching = false;
   // Suvda qadam og'irlashadi
   const wading = clamp(waterDepth(player.pos.x, player.pos.z) / MAX_WADE_DEPTH, 0, 1);
-  const speed = (aiming ? cfg.aimSpeed : sprinting ? cfg.sprintSpeed : cfg.walkSpeed) * (1 - wading * 0.55);
+  const baseSpeed = sprinting ? cfg.sprintSpeed
+    : player.crouching ? cfg.crouchSpeed
+      : aiming ? cfg.aimSpeed : cfg.walkSpeed;
+  const speed = baseSpeed * (1 - wading * 0.55);
 
   // Bosilgan tugmalarni qarash yo'nalishiga nisbatan dunyo yo'nalishiga aylantiramiz
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
@@ -2459,10 +2580,18 @@ function updatePlayer(dt) {
     player.pos.z *= scale;
   }
   // Chuqurroq joyda o'yinchi loyga botmaydi: boshi suvdan yetarlicha baland qoladi
-  player.pos.y = Math.max(terrainHeight(player.pos.x, player.pos.z), WATER_LEVEL - 0.55) + cfg.eyeHeight;
+  player.crouch = damp(player.crouch, player.crouching ? 1 : 0, 10, dt);
+  const eyeHeight = lerp(cfg.eyeHeight, cfg.crouchEyeHeight, player.crouch);
+  player.pos.y = Math.max(terrainHeight(player.pos.x, player.pos.z), WATER_LEVEL - 0.55) + eyeHeight;
 
-  // Hayvonlar shovqinni eshitadi: turgan odamni kechroq, yugurganni ertaroq sezadi
-  player.noise = !moving ? 0.55 : sprinting ? 1.5 : aiming ? 0.7 : 1;
+  // Hayvonlar shovqinni eshitadi: turgan odamni kechroq, yugurganni ertaroq sezadi.
+  // Egilish va buta orasida turish bu masofani qisqartiradi, suvda shaloplash esa oshiradi.
+  const hidden = isInCover(player.pos.x, player.pos.z);
+  player.noise = (!moving ? 0.55 : sprinting ? 1.5 : aiming ? 0.7 : 1)
+    * (player.crouching ? 0.5 : 1)
+    * (hidden ? 0.6 : 1)
+    * (moving && wading > 0.05 ? 1.3 : 1);
+  updateFieldHud(hidden);
 
   // Qadam va bosh tebranishi
   const groundSpeed = Math.hypot(player.velocity.x, player.velocity.z);
@@ -2498,10 +2627,11 @@ function updatePlayer(dt) {
 }
 
 function hintText(fromCenter, blockedByWater) {
-  if (weapon.ammo === 0 && weapon.reloadLeft <= 0) return 'O‘q tugadi: R tugmasini bosing';
+  if (weapon.ammo === 0 && weapon.reloadLeft <= 0 && weapon.reserve > 0) return 'O‘q tugadi: R tugmasini bosing';
+  if (weapon.ammo === 0 && weapon.reserve === 0) return 'O‘q qolmadi';
   if (blockedByWater) return 'Bu yer juda chuqur: sayoz joyni qidiring';
   if (fromCenter > CONFIG.worldRadius - 2) return 'O‘rmon chegarasi: ortga qayting';
-  return null;
+  return nearbyTrackLabel;
 }
 
 /** @param attacker zarba kelgan hayvon: o'yinchi undan orqaga itariladi */
@@ -2531,6 +2661,7 @@ function damagePlayer(amount, attacker) {
 
 const weapon = {
   ammo: CONFIG.weapon.magazine,
+  reserve: CONFIG.weapon.reserve,
   cooldown: 0,
   reloadLeft: 0,
   kick: 0,
@@ -2689,7 +2820,7 @@ function fire() {
 }
 
 function startReload() {
-  if (weapon.reloadLeft > 0 || weapon.ammo === CONFIG.weapon.magazine) return;
+  if (weapon.reloadLeft > 0 || weapon.ammo === CONFIG.weapon.magazine || weapon.reserve === 0) return;
   weapon.reloadLeft = CONFIG.weapon.reloadTime;
   ui.reloadBar.classList.add('active');
   sound.reload();
@@ -2713,7 +2844,9 @@ function updateWeapon(dt) {
     ui.reloadFill.style.transform = `scaleX(${progress})`;
     reloadLift = Math.sin(progress * Math.PI);
     if (weapon.reloadLeft <= 0) {
-      weapon.ammo = CONFIG.weapon.magazine;
+      const taken = Math.min(CONFIG.weapon.magazine - weapon.ammo, weapon.reserve);
+      weapon.ammo += taken;
+      weapon.reserve -= taken;
       ui.reloadBar.classList.remove('active');
       updateAmmoHud();
     }
@@ -2820,6 +2953,107 @@ function updateMotes(dt, time) {
     motePositions[i + 2] = wrap(motePositions[i + 2], origin.z);
   }
   motes.geometry.attributes.position.needsUpdate = true;
+}
+
+/* --------------------------------------------------------------------------
+   Izlar: bitta InstancedMesh ichida aylanma xotira. Eski izlar asta o'chadi.
+   -------------------------------------------------------------------------- */
+
+const TRACK_LIFETIME = 50;
+
+class TrackPool {
+  constructor(geometry, color, capacity) {
+    this.records = [];
+    this.capacity = capacity;
+    this.next = 0;
+    this.mesh = new THREE.InstancedMesh(
+      geometry,
+      new THREE.MeshLambertMaterial({ color, polygonOffset: true, polygonOffsetFactor: -2 }),
+      capacity,
+    );
+    this.mesh.frustumCulled = false;
+    this.mesh.receiveShadow = true;
+    this.dummy = new THREE.Object3D();
+    scene.add(this.mesh);
+    this.clear();
+  }
+
+  clear() {
+    this.records = [];
+    this.next = 0;
+    this.dummy.scale.setScalar(0);
+    this.dummy.updateMatrix();
+    for (let i = 0; i < this.capacity; i++) this.mesh.setMatrixAt(i, this.dummy.matrix);
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  write(index, record, scale) {
+    const { dummy } = this;
+    dummy.position.set(record.x, terrainHeight(record.x, record.z) + 0.05, record.z);
+    dummy.rotation.set(0, record.angle, 0);
+    dummy.scale.setScalar(scale);
+    dummy.updateMatrix();
+    this.mesh.setMatrixAt(index, dummy.matrix);
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  add(x, z, angle, size, label) {
+    const record = { x, z, angle, size, label, born: elapsed };
+    this.records[this.next] = record;
+    this.write(this.next, record, size);
+    this.next = (this.next + 1) % this.capacity;
+  }
+
+  /** Oxirgi soniyalarda iz kichrayib yo'qoladi. */
+  fade() {
+    this.records.forEach((record, index) => {
+      const left = TRACK_LIFETIME - (elapsed - record.born);
+      if (left < 12) this.write(index, record, record.size * clamp(left / 12, 0, 1));
+    });
+  }
+
+  /** O'yinchi yonidagi eng yangi izni topadi. */
+  freshestNear(x, z, radius) {
+    let freshest = null;
+    for (const record of this.records) {
+      if (elapsed - record.born > TRACK_LIFETIME) continue;
+      if (Math.abs(record.x - x) > radius || Math.abs(record.z - z) > radius) continue;
+      if (!freshest || record.born > freshest.born) freshest = record;
+    }
+    return freshest;
+  }
+}
+
+function hoofprintGeometry() {
+  const half = (side) => painted(new THREE.CylinderGeometry(0.09, 0.09, 0.01, 7), '#ffffff', [side * 0.1, 0, 0.03], [0, 0, 0], [0.8, 1, 2]);
+  return merge(half(-1), half(1));
+}
+
+function pawprintGeometry() {
+  const pad = (x, z, radius) => painted(new THREE.CylinderGeometry(radius, radius, 0.01, 7), '#ffffff', [x, 0, z]);
+  return merge(pad(0, -0.03, 0.12), pad(-0.14, 0.1, 0.05), pad(-0.05, 0.17, 0.05), pad(0.05, 0.17, 0.05), pad(0.14, 0.1, 0.05));
+}
+
+const tracks = {
+  hoof: new TrackPool(hoofprintGeometry(), '#2f2619', 900),
+  paw: new TrackPool(pawprintGeometry(), '#2f2619', 900),
+  blood: new TrackPool(painted(new THREE.CylinderGeometry(0.11, 0.11, 0.01, 7), '#ffffff'), '#8c1a10', 300),
+};
+
+let trackClock = 0;
+let nearbyTrackLabel = null;
+
+/** Izlarni sekin yangilaydi: bu ishni har kadrda qilish shart emas. */
+function updateTracks(dt) {
+  trackClock -= dt;
+  if (trackClock > 0) return;
+  trackClock = 0.35;
+  for (const pool of Object.values(tracks)) pool.fade();
+  // Qon izi muhimroq: u yarador hayvonga olib boradi
+  const nearby = tracks.blood.freshestNear(player.pos.x, player.pos.z, 2.6)
+    ?? tracks.hoof.freshestNear(player.pos.x, player.pos.z, 2.6)
+    ?? tracks.paw.freshestNear(player.pos.x, player.pos.z, 2.6);
+  nearbyTrackLabel = nearby ? nearby.label : null;
 }
 
 /* ==========================================================================
@@ -3065,6 +3299,9 @@ const ui = {
   warning: byId('warning'),
   vignette: byId('vignette'),
   hitArc: byId('hitArc'),
+  windArrow: byId('windArrow'),
+  noiseFill: document.querySelector('#noiseBar > i'),
+  stanceLine: byId('stanceLine'),
   threat: byId('threat'),
   settings: byId('settings'),
   sensitivityInput: byId('sensitivityInput'),
@@ -3092,7 +3329,7 @@ function updateScoreHud() {
 
 function updateAmmoHud() {
   const { magazine } = CONFIG.weapon;
-  ui.ammo.textContent = `${weapon.ammo} / ${magazine}`;
+  ui.ammo.textContent = `${weapon.ammo} / ${weapon.reserve}`;
   [...ui.ammoPips.children].forEach((pip, index) => pip.classList.toggle('spent', index >= weapon.ammo));
 }
 
@@ -3121,6 +3358,15 @@ function updateTimeHud() {
 function setHint(text) {
   ui.hint.hidden = !text;
   if (text && ui.hint.textContent !== text) ui.hint.textContent = text;
+}
+
+/** Shamol ko'rsatkichi, shovqin darajasi va o'yinchining holati. */
+function updateFieldHud(hidden) {
+  const windAngle = angleFromView(player.pos.x + Math.sin(wind.angle), player.pos.z + Math.cos(wind.angle));
+  ui.windArrow.style.transform = `rotate(${windAngle}rad)`;
+  ui.noiseFill.style.transform = `scaleX(${clamp(player.noise / 1.5, 0.03, 1)})`;
+  const stance = [player.crouching && 'Egilgan', hidden && 'Butada'].filter(Boolean).join(' · ');
+  if (ui.stanceLine.textContent !== stance) ui.stanceLine.textContent = stance;
 }
 
 /** Nuqta o'yinchining qarash yo'nalishidan qaysi burchakda: 0 = oldinda, + = o'ngda. */
@@ -3201,9 +3447,14 @@ function resetRound() {
   player.velocity.set(0, 0, 0);
   player.pitch = 0;
   player.hp = CONFIG.player.maxHp;
-  player.recoil = player.shake = player.aim = 0;
+  player.recoil = player.shake = player.aim = player.crouch = 0;
+  player.crouching = false;
 
-  Object.assign(weapon, { ammo: CONFIG.weapon.magazine, cooldown: 0, reloadLeft: 0, kick: 0, flashLeft: 0 });
+  Object.assign(weapon, {
+    ammo: CONFIG.weapon.magazine, reserve: CONFIG.weapon.reserve, cooldown: 0, reloadLeft: 0, kick: 0, flashLeft: 0,
+  });
+  for (const pool of Object.values(tracks)) pool.clear();
+  nearbyTrackLabel = null;
   ui.reloadBar.classList.remove('active');
 
   animals.forEach((animal) => {
@@ -3296,6 +3547,11 @@ function endRound(reason) {
   document.exitPointerLock?.();
   sound.horn();
 
+  // Aniq otgan ovchi qo'shimcha ochko oladi
+  const accuracy = game.shots ? game.hits / game.shots : 0;
+  const accuracyBonus = game.hits >= 3 ? Math.round(game.score * accuracy * 0.25) : 0;
+  game.score += accuracyBonus;
+
   const previousBest = profile.best;
   const isRecord = game.score > previousBest;
   if (isRecord) profile.best = game.score;
@@ -3305,11 +3561,11 @@ function endRound(reason) {
   ui.finalScore.textContent = game.score;
   ui.finalBest.textContent = isRecord ? 'Yangi rekord!' : `Rekord: ${previousBest}`;
 
-  const accuracy = game.shots ? Math.round((game.hits / game.shots) * 100) : 0;
   const rows = Object.keys(SPECIES)
     .filter((kind) => game.kills[kind] > 0)
     .map((kind) => [SPECIES[kind].name, game.kills[kind]]);
-  rows.push(['Aniqlik', `${accuracy}% (${game.hits} / ${game.shots})`]);
+  rows.push(['Aniqlik', `${Math.round(accuracy * 100)}% (${game.hits} / ${game.shots})`]);
+  if (accuracyBonus) rows.push(['Aniqlik bonusi', `+${accuracyBonus}`]);
   ui.finalTable.replaceChildren(...rows.map(([label, value]) => {
     const row = document.createElement('tr');
     row.insertCell().textContent = label;
@@ -3362,6 +3618,7 @@ document.addEventListener('keydown', (event) => {
   if (game.state !== 'playing') return;
   input.keys[event.code] = true;
   if (event.code === 'KeyR') startReload();
+  if (event.code === 'KeyC' && !event.repeat) player.crouching = !player.crouching;
   if (event.code === 'Escape' && pointer.free) pauseRound(); // qulflangan rejimda buni brauzer qiladi
 });
 document.addEventListener('keyup', (event) => {
@@ -3446,7 +3703,6 @@ byId('preyList').replaceChildren(...Object.values(SPECIES).map((spec) => {
 resetRound();
 
 const clock = new THREE.Clock();
-let elapsed = 0;
 
 /** Menyu va natija oynasi ortida kamera o'rmonni sekin aylanib ko'rsatadi. */
 function updateIdleCamera(dt) {
@@ -3470,7 +3726,9 @@ function frame() {
     updateIdleCamera(dt);
   }
   if (game.state !== 'paused') {
+    updateWind(dt);
     updateAnimals(dt);
+    updateTracks(dt);
     sound.updateAmbience(dt);
   }
 
