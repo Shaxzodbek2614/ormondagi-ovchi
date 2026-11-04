@@ -342,7 +342,7 @@ class Animal {
     }
 
     // Oxirgi xabardan beri o'tgan vaqt uchun hayvon qayerga yetganini taxmin qilamiz
-    const age = Math.min((now - net.stamp) / 1000, 0.25);
+    const age = Math.min((now - net.stamp) / 1000, 0.35);
     const x = net.x + Math.sin(net.heading) * net.speed * age;
     const z = net.z + Math.cos(net.heading) * net.speed * age;
     const jumped = Math.hypot(x - pos.x, z - pos.z) > 12;

@@ -11,6 +11,9 @@ const PEER_PREFIX = 'ormondagi-ovchi-';
 const PEERJS_URL = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
 const TEAM_SITE_URL = 'https://shaxzodbek2614.github.io/ormondagi-ovchi/';
 const MAX_PLAYERS = 4;
+const DIRECT_TIMEOUT = 6000;  // to'g'ridan-to'g'ri ulanishga shuncha kutamiz, keyin server orqali
+const WELCOME_TIMEOUT = 9000; // xost shuncha vaqtda javob bermasa, xona topilmadi deymiz
+const FORCE_RELAY = new URLSearchParams(location.search).has('relay'); // ulanishni tekshirish uchun
 const HOST_ID = 'h';
 
 const network = {
@@ -44,15 +47,8 @@ function markRoomOwner(code) {
   }
 }
 
-function loadPeerJs() {
-  if (window.Peer) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = PEERJS_URL;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error('peerjs'));
-    document.head.append(script);
-  });
+async function loadPeerJs() {
+  if (!window.Peer) await loadScript(PEERJS_URL);
 }
 
 /** Dunyo nazorat yig'indisi: ikki tomonda o'rmon bir xil ekanini tekshiradi. */
@@ -81,6 +77,15 @@ function describePeerError(error) {
     case 'socket-error':
     case 'socket-closed': return 'Ulanish xizmatiga yetib bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.';
     default: return 'Ulanishda xato chiqdi. Sahifani yangilab, qayta urinib ko‘ring.';
+  }
+}
+
+/** Boshqa kompyuterdan kelgan xabar buzuq bo'lsa ham o'yin to'xtab qolmasin. */
+function runSafely(handler) {
+  try {
+    handler();
+  } catch (error) {
+    console.warn('Xabarni o‘qib bo‘lmadi', error);
   }
 }
 
@@ -115,25 +120,41 @@ async function openRoom() {
   renderLobby();
   setLobbyStatus('Xona ochilmoqda…');
 
-  await loadPeerJs();
-  let attempts = 0;
-  const connect = () => {
-    const peer = new Peer(PEER_PREFIX + roomCode);
-    network.peer = peer;
-    peer.on('open', () => setLobbyStatus('Xona tayyor. Do‘stlaringizga kod yoki havolani yuboring.'));
-    peer.on('connection', acceptClient);
-    peer.on('error', (error) => {
-      // Sahifa yangilanganda eski ulanish bir oz vaqt kodni band tutadi
-      if (error.type === 'unavailable-id' && attempts++ < 6) {
-        setLobbyStatus('Xona kodi bo‘shashini kutmoqdamiz…');
-        peer.destroy();
-        setTimeout(connect, 5000);
-        return;
-      }
-      setLobbyStatus(describePeerError(error));
-    });
+  // Mijozlarni ikki yo'lda kutamiz: to'g'ridan-to'g'ri va server orqali
+  const announce = (ready) => {
+    if (ready) setLobbyStatus('Xona tayyor. Do‘stlaringizga kod yoki havolani yuboring.');
+    return ready;
   };
-  connect();
+  const direct = openDirectInbox().catch(() => false).then(announce);
+  const relay = openRelayInbox().catch(() => false).then(announce);
+  if (!(await direct) && !(await relay)) {
+    setLobbyStatus('Ulanish xizmatlariga yetib bo‘lmadi. Internetni tekshirib, sahifani yangilang.');
+  }
+}
+
+/** PeerJS orqali kutish. Muvaffaqiyatli bo'lsa true qaytaradi. */
+async function openDirectInbox() {
+  await loadPeerJs();
+  return new Promise((resolve) => {
+    let attempts = 0;
+    const connect = () => {
+      const peer = new Peer(PEER_PREFIX + roomCode);
+      network.peer = peer;
+      peer.on('open', () => resolve(true));
+      peer.on('connection', acceptClient);
+      peer.on('error', (error) => {
+        // Sahifa yangilanganda eski ulanish bir oz vaqt kodni band tutadi
+        if (error.type === 'unavailable-id' && attempts++ < 6) {
+          peer.destroy();
+          setTimeout(connect, 5000);
+        } else {
+          resolve(false);
+        }
+      });
+    };
+    connect();
+    setTimeout(() => resolve(false), 10000);
+  });
 }
 
 function acceptClient(connection) {
@@ -143,7 +164,7 @@ function acceptClient(connection) {
       welcomeClient(connection, message);
     } else if (member && HOST_MESSAGES[message?.t]) {
       member.lastSeen = performance.now();
-      HOST_MESSAGES[message.t](member, message);
+      runSafely(() => HOST_MESSAGES[message.t](member, message));
     }
   });
   connection.on('close', () => dropClient(connection));
@@ -192,25 +213,68 @@ function dropClient(connection) {
 async function joinRoom() {
   network.active = network.isClient = true;
   renderLobby();
-  setLobbyStatus('Xonaga ulanilmoqda…');
 
+  setLobbyStatus('Xonaga ulanilmoqda…');
+  let connection = FORCE_RELAY ? null : await connectDirectly().catch(() => null);
+  if (!connection) {
+    setLobbyStatus('Server orqali ulanilmoqda…');
+    connection = await connectThroughRelay().catch(() => null);
+  }
+  if (!connection) {
+    setLobbyStatus('Ulanib bo‘lmadi. Internetni tekshirib, sahifani yangilang.');
+    return;
+  }
+
+  network.hostConnection = connection;
+  network.lastHeardAt = performance.now();
+  connection.on('data', (message) => {
+    network.lastHeardAt = performance.now();
+    runSafely(() => CLIENT_MESSAGES[message?.t]?.(message));
+  });
+  connection.on('close', onHostLost);
+  greetHost(connection);
+}
+
+/** To'g'ridan-to'g'ri ulanish. Tarmoq yo'l qo'ymasa, muddat tugagach null qaytaradi. */
+async function connectDirectly() {
   await loadPeerJs();
-  const peer = new Peer();
-  network.peer = peer;
-  peer.on('error', (error) => setLobbyStatus(describePeerError(error)));
-  peer.on('open', () => {
-    const connection = peer.connect(PEER_PREFIX + roomCode, { reliable: true, serialization: 'json' });
-    network.hostConnection = connection;
-    connection.on('open', () => sendTo(connection, {
-      t: 'hello', version: PROTOCOL_VERSION, name: profile.nickname, checksum: worldChecksum(),
-    }));
-    connection.on('data', (message) => CLIENT_MESSAGES[message?.t]?.(message));
-    connection.on('close', onHostLost);
+  return new Promise((resolve) => {
+    const peer = new Peer();
+    network.peer = peer;
+    const stop = (result) => {
+      clearTimeout(timer);
+      if (!result) peer.destroy();
+      resolve(result);
+    };
+    const timer = setTimeout(() => stop(null), DIRECT_TIMEOUT);
+    peer.on('error', () => stop(null));
+    peer.on('open', () => {
+      const connection = peer.connect(PEER_PREFIX + roomCode, { reliable: true, serialization: 'json' });
+      connection.on('open', () => stop(connection));
+    });
   });
 }
 
+/** Salom yuboradi va javob kelguncha takrorlaydi: server orqali xabar yo'qolishi mumkin. */
+function greetHost(connection) {
+  const hello = { t: 'hello', version: PROTOCOL_VERSION, name: profile.nickname, checksum: worldChecksum() };
+  const startedAt = performance.now();
+  const retry = setInterval(() => {
+    if (network.myId) {
+      clearInterval(retry);
+    } else if (performance.now() - startedAt > WELCOME_TIMEOUT) {
+      clearInterval(retry);
+      setLobbyStatus('Xona topilmadi. Kodni tekshiring va do‘stingiz xonani ochiq tutganini so‘rang.');
+    } else {
+      sendTo(connection, hello);
+    }
+  }, 1500);
+  sendTo(connection, hello);
+}
+
 function onHostLost() {
-  if (network.closing) return;
+  if (network.closing || network.hostLost) return;
+  network.hostLost = true;
   if (game.mode === 'team' && game.state === 'playing') endRound('Xost o‘yindan chiqib ketdi');
   else setLobbyStatus('Xost bilan aloqa uzildi. Xonaga qaytadan kiring.');
 }
@@ -218,9 +282,15 @@ function onHostLost() {
 /** Xonani tark etadi: sahifa yangi o'rmon bilan qayta yuklanadi. */
 function leaveRoom() {
   network.closing = true;
-  network.peer?.destroy();
-  location.hash = '';
-  location.reload();
+  // Chiqib ketayotganimizni xabar qilamiz, keyin ulanishlarni yopamiz
+  if (network.isHost) broadcast({ t: 'hostleft' });
+  else sendTo(network.hostConnection, { t: 'bye' });
+  setTimeout(() => {
+    network.peer?.destroy();
+    for (const broker of network.relayBrokers ?? []) broker.end(true);
+    location.hash = '';
+    location.reload();
+  }, 200);
 }
 
 function applyRoster(roster) {

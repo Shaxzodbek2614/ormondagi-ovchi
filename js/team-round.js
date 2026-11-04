@@ -4,7 +4,13 @@
    BIRGA OV RAUNDI: holatni sinxronlash, otish, yiqilish, belgilar
    ========================================================================== */
 
-const SEND_INTERVAL = { player: 1 / 15, world: 1 / 10 };
+// Xabar yuborish oralig'i. Ochiq server orqali o'ynaganda uni ortiqcha yuklamaymiz.
+const SEND_INTERVAL = {
+  direct: { player: 1 / 15, world: 1 / 10 },
+  relay: { player: 1 / 10, world: 1 / 5 },
+};
+const RELAY_VIEW_DISTANCE = 130;
+const HEARTBEAT_INTERVAL = 3;
 const ANIMAL_STATES = ['graze', 'walk', 'alert', 'flee', 'charge', 'recover', 'stalk', 'rear', 'swim', 'fly', 'hidden', 'leap', 'dead', 'pose'];
 const REVIVE_TIME = 3;
 const REVIVE_RANGE = 2.8;
@@ -55,7 +61,6 @@ function beginTeamRound(setup, teamMission) {
     if (member.hunter) member.hunter.down = false;
     member.lastSeen = performance.now(); // xonada kutilgan vaqt uzilish deb hisoblanmasin
   }
-  network.lastWorldAt = performance.now();
   game.reviveProgress = 0;
   game.myRole = null;
   game.marks = [];
@@ -102,11 +107,11 @@ function localPlayerState() {
 }
 
 /** Xost: bitta ko'ruvchi uchun yaqin hayvonlar ro'yxati, tekis sonlar massivida. */
-function encodeAnimals(viewer) {
+function encodeAnimals(viewer, range) {
   const list = [];
   for (const animal of animals) {
     if (animal.dormant || !animal.spawned) continue;
-    if (Math.hypot(animal.pos.x - viewer.pos.x, animal.pos.z - viewer.pos.z) > ANIMAL_VIEW_DISTANCE) continue;
+    if (Math.hypot(animal.pos.x - viewer.pos.x, animal.pos.z - viewer.pos.z) > range) continue;
     const y = animal.pos.y;
     list.push(
       animal.id, Math.round(animal.pos.x * 10), Math.round(y * 10), Math.round(animal.pos.z * 10),
@@ -133,7 +138,32 @@ function sendWorld() {
     players,
   };
   for (const member of network.roster.values()) {
-    if (member.connection && member.hunter) sendTo(member.connection, { ...shared, animals: encodeAnimals(member.hunter) });
+    if (member.connection && member.hunter) {
+      const range = member.connection.relay ? RELAY_VIEW_DISTANCE : ANIMAL_VIEW_DISTANCE;
+      sendTo(member.connection, { ...shared, animals: encodeAnimals(member.hunter, range) });
+    }
+  }
+}
+
+/** Ulanganlar borligini tekshirib turadi: xonada kutilayotganda ham. */
+function updateHeartbeat(dt) {
+  network.beatClock = (network.beatClock ?? 0) - dt;
+  if (network.beatClock > 0) return;
+  network.beatClock = HEARTBEAT_INTERVAL;
+
+  const now = performance.now();
+  if (network.isClient) {
+    if (network.myId) sendToHost({ t: 'beat' });
+    if (network.myId && now - network.lastHeardAt > CLIENT_TIMEOUT) onHostLost();
+    return;
+  }
+  broadcast({ t: 'beat' });
+  for (const member of [...network.roster.values()]) {
+    if (member.connection && now - member.lastSeen > CLIENT_TIMEOUT) {
+      const { connection } = member;
+      dropClient(connection);
+      connection.close();
+    }
   }
 }
 
@@ -143,25 +173,23 @@ function updateNetwork(dt) {
   for (const member of network.roster.values()) {
     if (member.hunter && member.hunter !== player) member.hunter.update(dt);
   }
+  updateHeartbeat(dt);
 
   if (game.mode !== 'team' || game.state !== 'playing') return;
-  // Xost kutilmaganda o'chib qolsa, ulanish yopilgani darrov bilinmasligi mumkin
-  if (network.isClient && performance.now() - network.lastWorldAt > CLIENT_TIMEOUT) onHostLost();
+
+  const relayed = network.isClient
+    ? network.hostConnection?.relay
+    : [...network.roster.values()].some((member) => member.connection?.relay);
+  const interval = relayed ? SEND_INTERVAL.relay : SEND_INTERVAL.direct;
 
   network.sendClock -= dt;
-  if (network.isClient && network.sendClock <= 0) {
-    network.sendClock = SEND_INTERVAL.player;
-    sendToHost({ t: 'me', state: localPlayerState() });
-  }
-  if (network.isHost && network.sendClock <= 0) {
-    network.sendClock = SEND_INTERVAL.world;
-    sendWorld();
-    const now = performance.now();
-    for (const member of [...network.roster.values()]) {
-      if (member.connection && now - member.lastSeen > CLIENT_TIMEOUT) {
-        member.connection.close();
-        dropClient(member.connection);
-      }
+  if (network.sendClock <= 0) {
+    if (network.isClient) {
+      network.sendClock = interval.player;
+      sendToHost({ t: 'me', state: localPlayerState() });
+    } else {
+      network.sendClock = interval.world;
+      sendWorld();
     }
   }
   updateRevive(dt);
@@ -185,6 +213,8 @@ function applyAnimalSnapshot(list) {
 /* Xost qabul qiladigan xabarlar */
 
 const HOST_MESSAGES = {
+  beat() {},
+
   me(member, { state }) {
     if (!Array.isArray(state) || state.length !== 8 || !state.every(isNumber)) return;
     const [x, , z] = state;
@@ -229,6 +259,10 @@ const HOST_MESSAGES = {
 /* Mijoz qabul qiladigan xabarlar */
 
 const CLIENT_MESSAGES = {
+  beat() {},
+  hostleft() {
+    onHostLost();
+  },
   refused({ reason }) {
     setLobbyStatus(String(reason ?? 'Xonaga kirib bo‘lmadi.'));
   },
@@ -264,7 +298,6 @@ const CLIENT_MESSAGES = {
     }
   },
   world(message) {
-    network.lastWorldAt = performance.now();
     game.timeLeft = message.time;
     game.score = message.score;
     wind.angle = message.wind;
