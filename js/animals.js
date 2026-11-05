@@ -62,6 +62,13 @@ const SPECIES = {
     senseRange: 28, alertTime: [0.3, 0.5], stride: 2.6, grazeAngle: 0.55, lieHeight: 0.26,
     aggressive: true, pack: true, damage: 15, biteRange: 1.8, giveUpRange: 70,
   },
+  // Ov iti: hayvonlar ro'yxatiga kirmaydi, dog.js boshqaradi
+  dog: {
+    name: 'It', points: 0, hp: 1, headDamage: 1, count: 0, companion: true, wadeDepth: 0.9, scale: 0.72, tailWag: 0.4,
+    model: canineModel({ back: '#8a5a2e', belly: '#e3cfa8', sock: '#e3cfa8', tailTip: '#6b4522', muzzle: '#e3cfa8', earScale: 1.15 }),
+    walkSpeed: 2.6, runSpeed: 10.5, turnRate: 6, radius: 0.35,
+    senseRange: 0, stride: 3, grazeAngle: 0.5, lieHeight: 0.2,
+  },
   bear: {
     track: { type: 'paw', size: 1.9, step: 1.5, width: 0.32 },
     name: 'Ayiq', points: 120, hp: 6, headDamage: 2, count: 6, drinks: true, wadeDepth: 1.1, voice: 'growl', model: bearModel(),
@@ -280,7 +287,7 @@ class Animal {
 
   /** O'q ovozi yoki jarohat: endi kutib turmaydi. */
   startle() {
-    if (['flee', 'charge', 'recover', 'stalk', 'rear'].includes(this.state)) return;
+    if (['flee', 'charge', 'recover', 'stalk', 'rear', 'trapped'].includes(this.state)) return;
     if (this.spec.aggressive) {
       if (this.spec.voice) sound[this.spec.voice](this.pos);
       this.beginAttack();
@@ -433,6 +440,15 @@ class Animal {
 
       case 'stalk':
         return this.stalk(dt, distance);
+
+      case 'trapped':
+        // Tuzoqdan chiqishga urinadi, bo'shagach qochadi yoki hujum qiladi
+        this.headGoal = 0.4 + Math.sin(this.idleClock * 9) * 0.25;
+        if (this.stateTime <= 0) {
+          if (spec.aggressive) this.beginAttack();
+          else this.beginFlee();
+        }
+        return 0;
 
       case 'rear':
         // Ayiq orqa oyog'ida turib na'ra tortadi: bu qochish yoki otish uchun oxirgi imkoniyat

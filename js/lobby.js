@@ -77,6 +77,7 @@ function showLobby() {
   ui.menu.hidden = ui.team.hidden = ui.result.hidden = ui.setup.hidden = true;
   ui.lobby.hidden = false;
   renderLobby();
+  renderLoadouts();
 }
 
 /** Sahifa xona kodi bilan ochilganda ishlaydi. */

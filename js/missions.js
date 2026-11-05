@@ -205,6 +205,19 @@ const MISSIONS = [
     },
   },
   {
+    id: 'under-ice',
+    title: 'Muz ostidagi ov',
+    brief: 'Ko‘l muzlagan. Muzni teshib, to‘rtta baliq tuting.',
+    setup: { time: 'dawn', weather: 'clear', season: 'winter', wind: 'calm', difficulty: 'easy', duration: '240' },
+    goals: [{ kind: 'fish', goal: 4, text: 'Baliq tutish' }],
+    reward: 60,
+    fastLeft: 90,
+    tips: ['Muz ustida T tugmasini bosib turing. Po‘kak cho‘kkanda T ni tez bosing.'],
+    prepare() {
+      startAtLake();
+    },
+  },
+  {
     id: 'winter-hunger',
     title: 'Qish ochligi',
     brief: 'Bor-yo‘g‘i 10 ta o‘q bilan beshta hayvon ovlang.',
@@ -249,6 +262,7 @@ function showMissionBrief(mission) {
   ui.briefTitle.textContent = mission.title;
   ui.briefText.textContent = mission.brief;
   ui.briefConditions.textContent = conditions.name;
+  renderLoadouts();
   ui.briefStartBtn.onclick = () => startMission(mission);
   ui.menu.hidden = ui.missions.hidden = ui.result.hidden = true;
   ui.brief.hidden = false;

@@ -158,6 +158,14 @@ const sound = {
     this.tone({ type: 'square', from: 74, to: 40, volume: volume * 0.4, duration: 1.3, target: panner });
     this.noiseHit({ from: 900, to: 200, volume: volume * 0.6, duration: 1.3, target: panner });
   },
+  bark(position) {
+    if (!this.context) return;
+    const { panner, volume } = this.spatial(position);
+    for (let i = 0; i < 2; i++) {
+      this.tone({ type: 'square', from: 420, to: 190, volume: volume * 0.16, duration: 0.09, delay: i * 0.16, target: panner });
+      this.noiseHit({ type: 'bandpass', from: 900, to: 400, volume: volume * 0.14, duration: 0.08, delay: i * 0.16, target: panner });
+    }
+  },
   quack(position) {
     if (!this.context) return;
     const { panner, volume } = this.spatial(position);

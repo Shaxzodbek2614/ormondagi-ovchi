@@ -19,7 +19,7 @@ function turnView(dx, dy) {
 }
 
 function startScoping() {
-  if (!owns('binoculars') && game.myRole !== 'observer') return;
+  if (!isEquipped('binoculars') && game.myRole !== 'observer') return;
   input.scoping = true;
   ui.binoculars.hidden = false;
 }
@@ -54,6 +54,10 @@ document.addEventListener('contextmenu', (event) => event.preventDefault());
 
 document.addEventListener('keydown', (event) => {
   if (event.code === 'KeyM' && !event.repeat) sound.toggleMute();
+  if (event.code === 'Tab') {
+    event.preventDefault(); // brauzer fokusni boshqa joyga o'tkazmasin
+    if (canControl() && !event.repeat) toggleMap();
+  }
   if (!canControl()) return;
   input.keys[event.code] = true;
   if (event.code === 'KeyR') startReload();
@@ -61,6 +65,10 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'KeyC') player.crouching = !player.crouching;
   if (event.code === 'KeyH') useMedkit();
   if (event.code === 'KeyF') player.lampOn = !player.lampOn;
+  if (event.code === 'KeyT') pressFishKey();
+  if (event.code === 'KeyY') useTower();
+  if (event.code === 'KeyU') useTrap();
+  if (event.code === 'KeyK' && dog.active) dog.staying = !dog.staying;
   if (event.code === 'KeyG' && game.mode === 'team') placePing();
   if (event.code === 'Digit1') trySwitchWeapon('rifle');
   if (event.code === 'Digit2') trySwitchWeapon('shotgun');
@@ -92,8 +100,12 @@ const TOUCH_BUTTONS = [
   { id: 'crouch', label: 'Egilish', press: () => { player.crouching = !player.crouching; }, isOn: () => player.crouching },
   { id: 'sprint', label: 'Yugurish', press: () => { input.keys.ShiftLeft = !input.keys.ShiftLeft; }, isOn: () => input.keys.ShiftLeft },
   { id: 'swap', label: 'Qurol', press: cycleWeapon, isAvailable: () => availableWeapons().length > 1 },
-  { id: 'scope', label: 'Durbin', press: startScoping, release: stopScoping, isAvailable: () => owns('binoculars') || game.myRole === 'observer' },
+  { id: 'scope', label: 'Durbin', press: startScoping, release: stopScoping, isAvailable: () => isEquipped('binoculars') || game.myRole === 'observer' },
   { id: 'heal', label: 'Dori', press: useMedkit, isAvailable: () => profile.medkits > 0 },
+  { id: 'map', label: 'Xarita', press: toggleMap },
+  { id: 'fish', label: 'Baliq', press: () => { input.keys.KeyT = true; pressFishKey(); }, release: () => { input.keys.KeyT = false; }, isAvailable: () => fishing.state !== 'idle' || Boolean(fishingSpot()) },
+  { id: 'tower', label: 'Minora', press: useTower, isAvailable: () => isEquipped('tower') },
+  { id: 'trap', label: 'Tuzoq', press: useTrap, isAvailable: () => isEquipped('trap') },
   { id: 'ping', label: 'Belgi', press: () => placePing(), isAvailable: () => game.mode === 'team' },
   { id: 'revive', label: 'Turg‘izish', press: () => { input.keys.KeyE = true; }, release: () => { input.keys.KeyE = false; }, isAvailable: () => Boolean(game.reviveTarget) },
   { id: 'lamp', label: 'Chiroq', press: () => { player.lampOn = !player.lampOn; }, isOn: () => player.lampOn, isAvailable: () => conditions.night },
@@ -185,6 +197,11 @@ window.addEventListener('blur', () => {
 ui.startBtn.addEventListener('click', showSetup);
 ui.againBtn.addEventListener('click', restartRound);
 ui.missionsBtn.addEventListener('click', showMissions);
+ui.trophiesBtn.addEventListener('click', showTrophies);
+ui.trophiesBackBtn.addEventListener('click', () => {
+  ui.trophies.hidden = true;
+  ui.menu.hidden = false;
+});
 ui.briefBackBtn.addEventListener('click', () => {
   ui.brief.hidden = true;
   applySetup(profile.setup);
@@ -227,6 +244,7 @@ function showSetup() {
   applySetup(profile.setup);
   renderSetup();
   ui.setupStartBtn.textContent = network.active ? 'Saqlash' : 'Ovga chiqish';
+  renderLoadouts();
   ui.menu.hidden = true;
   ui.setup.hidden = false;
 }
@@ -315,13 +333,22 @@ const SHOP_ITEMS = [
   { id: 'binoculars', name: 'Durbin', price: 60, note: 'B tugmasini bosib turib uzoqni ko‘rish.' },
   { id: 'camo', name: 'Kamuflyaj', price: 100, note: 'Hayvonlar sizni 20% yaqinroqdan sezadi.' },
   { id: 'ammoPouch', name: 'O‘q xaltasi', price: 80, note: 'Har raundda zaxira o‘q 50% ko‘p bo‘ladi.' },
-  { id: 'medkit', name: 'Dori', price: 30, repeatable: true, note: `H tugmasi: ${CONFIG.medkitHeal} jon tiklaydi.` },
+  { id: 'dog', name: 'Ov iti', price: 200, note: 'Hayvonni sezib huradi, yaradorga yetaklaydi. Lekin shovqin ko‘proq. K tugmasi: tur yoki yur.' },
+  { id: 'tower', name: 'Minora', price: 140, note: 'Raundda bir marta Y bilan quriladi. Balanddan ko‘rasiz, hayvon kech sezadi.' },
+  {
+    id: 'trap', name: 'Tuzoq (3 ta)', price: 60, repeatable: true, count: () => profile.traps,
+    give: () => { profile.traps += 3; }, note: 'U tugmasi bilan qo‘yiladi. Bosgan hayvon 8 soniya qimirlay olmaydi.',
+  },
+  {
+    id: 'medkit', name: 'Dori', price: 30, repeatable: true, count: () => profile.medkits,
+    give: () => { profile.medkits++; }, note: `H tugmasi: ${CONFIG.medkitHeal} jon tiklaydi.`,
+  },
 ];
 
 function buyItem(item) {
   if (profile.coins < item.price) return;
   profile.coins -= item.price;
-  if (item.repeatable) profile.medkits++;
+  if (item.repeatable) item.give();
   else profile.owned.push(item.id);
   saveProfile();
   showShop();
@@ -332,7 +359,7 @@ function showShop() {
   ui.shopList.replaceChildren(...SHOP_ITEMS.map((item) => {
     const row = document.createElement('li');
     const name = document.createElement('b');
-    name.textContent = item.repeatable ? `${item.name} (bor: ${profile.medkits})` : item.name;
+    name.textContent = item.repeatable ? `${item.name} · bor: ${item.count()}` : item.name;
     const note = document.createElement('small');
     note.textContent = item.note;
     const button = document.createElement('button');
@@ -343,6 +370,36 @@ function showShop() {
     row.append(name, note, button);
     return row;
   }));
+}
+
+/* Raundga olib chiqiladigan jihozlar: o'yinchi o'zi tanlaydi */
+
+const GEAR_ITEMS = [
+  { id: 'binoculars', name: 'Durbin' },
+  { id: 'camo', name: 'Kamuflyaj' },
+  { id: 'ammoPouch', name: 'O‘q xaltasi' },
+  { id: 'dog', name: 'Ov iti' },
+  { id: 'tower', name: 'Minora' },
+  { id: 'trap', name: 'Tuzoq' },
+];
+
+function renderLoadouts() {
+  document.querySelectorAll('[data-loadout]').forEach((holder) => {
+    holder.replaceChildren(...GEAR_ITEMS.map(({ id, name }) => {
+      const button = document.createElement('button');
+      const available = hasGear(id);
+      button.textContent = name;
+      button.disabled = !available;
+      button.title = available ? '' : 'Do‘kondan sotib oling';
+      button.setAttribute('aria-pressed', String(isEquipped(id)));
+      button.addEventListener('click', () => {
+        profile.loadout[id] = !isEquipped(id);
+        saveProfile();
+        renderLoadouts();
+      });
+      return button;
+    }));
+  });
 }
 
 document.querySelectorAll('[data-open-shop]').forEach((button) => button.addEventListener('click', () => {

@@ -158,7 +158,7 @@ scene.add(muzzleLight);
 
 /** Raund boshida har bir qurol o'qlar bilan to'ldiriladi. */
 function stockWeapons() {
-  const pouch = owns('ammoPouch') ? 1.5 : 1;
+  const pouch = isEquipped('ammoPouch') ? 1.5 : 1;
   weapon.slots = Object.fromEntries(Object.entries(WEAPONS).map(([id, gun]) => (
     [id, { ammo: gun.magazine, reserve: Math.round(gun.reserve * pouch) }]
   )));
@@ -420,6 +420,7 @@ function startReload() {
 function updateWeapon(dt) {
   const { gun } = weapon;
   const unarmed = player.down || ROLE_INFO[game.myRole]?.unarmed;
+  if (fishing.state !== 'idle') input.fire = false;
   viewModel.visible = !unarmed;
   if (unarmed) input.fire = false;
   weapon.cooldown = Math.max(0, weapon.cooldown - dt);

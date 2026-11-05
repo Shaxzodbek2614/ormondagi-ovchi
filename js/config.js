@@ -91,6 +91,10 @@ const DEFAULT_PROFILE = {
   owned: [],    // sotib olingan jihozlar
   missions: {}, // missiya id: olingan yulduzlar
   teamMissions: {},
+  loadout: {},  // jihoz id: false bo'lsa, raundga olib chiqilmaydi
+  traps: 0,
+  xp: 0,
+  trophies: { kills: {}, headshots: 0, longestShot: 0 },
   nickname: '',
   medkits: 0,
   settings: { sensitivity: 1, volume: 0.8, quality: IS_TOUCH_DEVICE ? 'low' : 'high' },
@@ -122,6 +126,10 @@ function saveProfile() {
 
 const profile = loadProfile();
 const owns = (itemId) => profile.owned.includes(itemId);
+const hasGear = (itemId) => (itemId === 'trap' ? profile.traps > 0 : owns(itemId));
+
+/** Jihoz raundga olib chiqiladimi: sotib olingan va o'yinchi o'chirib qo'ymagan bo'lishi kerak. */
+const isEquipped = (itemId) => hasGear(itemId) && profile.loadout[itemId] !== false;
 
 /* ==========================================================================
    YORDAMCHI FUNKSIYALAR

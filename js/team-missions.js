@@ -293,6 +293,7 @@ function applyRole(role) {
 
 /** Jamoa holatini ekranga chiqaradi. status null bo'lsa, hammasi yashiriladi. */
 function renderTeamStatus(status) {
+  game.teamStatus = status;
   ui.teamLine.textContent = status?.text ?? '';
   game.marks = status?.marks ?? [];
 

@@ -30,6 +30,17 @@ const ui = {
   warning: byId('warning'),
   vignette: byId('vignette'),
   hitArc: byId('hitArc'),
+  compass: byId('compass'),
+  mapScreen: byId('mapScreen'),
+  mapCanvas: byId('mapCanvas'),
+  rankLine: byId('rankLine'),
+  trophies: byId('trophies'),
+  trophiesBtn: byId('trophiesBtn'),
+  trophiesBackBtn: byId('trophiesBackBtn'),
+  trophyRank: byId('trophyRank'),
+  trophyXp: byId('trophyXp'),
+  trophyTable: byId('trophyTable'),
+  trophyBadges: byId('trophyBadges'),
   brief: byId('brief'),
   briefTitle: byId('briefTitle'),
   briefText: byId('briefText'),
@@ -150,7 +161,10 @@ function updateMissionHud() {
 }
 
 function updateMedkitHud() {
-  ui.medkitLine.textContent = profile.medkits ? `Dori: ${profile.medkits} (H)` : '';
+  const items = [];
+  if (profile.medkits) items.push(`Dori: ${profile.medkits} (H)`);
+  if (isEquipped('trap')) items.push(`Tuzoq: ${profile.traps} (U)`);
+  ui.medkitLine.textContent = items.join(' · ');
 }
 
 function updateTimeHud() {
@@ -172,7 +186,7 @@ function updateFieldHud(hidden) {
   const windAngle = angleFromView(player.pos.x + Math.sin(wind.angle), player.pos.z + Math.cos(wind.angle));
   ui.windArrow.style.transform = `rotate(${windAngle}rad)`;
   ui.noiseFill.style.transform = `scaleX(${clamp(player.noise / 1.5, 0.03, 1)})`;
-  const stance = [player.crouching && 'Egilgan', hidden && 'Butada', player.lampOn && 'Chiroq']
+  const stance = [player.crouching && 'Egilgan', hidden && 'Butada', player.onTower && 'Minorada', player.lampOn && 'Chiroq']
     .filter(Boolean).join(' · ');
   if (ui.stanceLine.textContent !== stance) ui.stanceLine.textContent = stance;
 }

@@ -11,7 +11,7 @@ const SEND_INTERVAL = {
 };
 const RELAY_VIEW_DISTANCE = 130;
 const HEARTBEAT_INTERVAL = 3;
-const ANIMAL_STATES = ['graze', 'walk', 'alert', 'flee', 'charge', 'recover', 'stalk', 'rear', 'swim', 'fly', 'hidden', 'leap', 'dead', 'pose'];
+const ANIMAL_STATES = ['graze', 'walk', 'alert', 'flee', 'charge', 'recover', 'stalk', 'rear', 'swim', 'fly', 'hidden', 'leap', 'dead', 'pose', 'trapped'];
 const REVIVE_TIME = 3;
 const REVIVE_RANGE = 2.8;
 const REVIVE_HEALTH = 40;
@@ -239,6 +239,14 @@ const HOST_MESSAGES = {
     if (member.id !== HOST_ID) sound.distantShot({ x, z });
   },
 
+  catch(member) {
+    recordCatch(member);
+  },
+
+  build(member, { kind, x, z }) {
+    if ((kind === 'tower' || kind === 'trap') && isNumber(x) && isNumber(z)) buildPlaceable(kind, x, z);
+  },
+
   ping(member, { x, y, z }) {
     if (![x, y, z].every(isNumber)) return;
     game.activeMission?.onPing?.(x, z);
@@ -319,8 +327,15 @@ const CLIENT_MESSAGES = {
     }
     applyAnimalSnapshot(message.animals);
   },
-  kill({ name, points, headshot }) {
+  kill({ name, points, headshot, kind, distance, by }) {
     showPopup(`+${points} ${cleanName(name)}${headshot ? ' · boshga!' : ''}`);
+    if (by === network.myId && SPECIES[kind]) recordTrophy(kind, Boolean(headshot), Number(distance) || 0);
+  },
+  built(item) {
+    if (placeableShapes[item.kind] && isNumber(item.x) && isNumber(item.z)) showPlaceable(item);
+  },
+  unbuilt({ id }) {
+    hidePlaceable(id);
   },
   hurt({ amount, x, z, name }) {
     damagePlayer(amount, { pos: { x, z }, spec: { name: cleanName(name) } });

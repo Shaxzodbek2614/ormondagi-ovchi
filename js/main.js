@@ -14,7 +14,7 @@ applySetup(profile.setup);
 applyQuality();
 
 // Bosh menyudagi hayvonlar ro'yxati to'g'ridan-to'g'ri sozlamalardan olinadi
-byId('preyList').replaceChildren(...Object.values(SPECIES).filter((spec) => !spec.missionOnly).map((spec) => {
+byId('preyList').replaceChildren(...Object.values(SPECIES).filter((spec) => !spec.missionOnly && !spec.companion).map((spec) => {
   const item = document.createElement('li');
   const name = document.createElement('span');
   name.textContent = spec.name;
@@ -45,7 +45,12 @@ function simulate(realDt) {
   if (game.state === 'playing') {
     updatePlayer(dt);
     updateWeapon(dt);
+    updateFishing(dt);
     updateArrows(dt);
+    updateTraps(dt);
+    dog.update(dt);
+    updateCompass();
+    if (!ui.mapScreen.hidden) renderMap();
     if (IS_TOUCH_DEVICE) updateTouchButtons();
     if (!network.isClient) updateRound(realDt);
   } else if (game.state !== 'paused') {
@@ -99,6 +104,7 @@ frame();
 window.ovchiReady = true;
 ui.startBtn.disabled = false;
 ui.startBtn.textContent = 'Erkin ov';
+updateRankLine();
 bootRoom();
 
 // Ko'p ko'lli dunyo uchun sahifa qayta yuklangan bo'lsa, missiya tavsifi darrov ochiladi

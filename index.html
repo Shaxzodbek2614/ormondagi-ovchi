@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>O‘rmondagi ovchi</title>
 
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 
 <!-- Three.js CDN'dan olinadi. O'yindagi barcha model, tekstura va ovozlar kod bilan yasaladi. -->
 <script type="importmap">
@@ -63,6 +63,7 @@
   <div id="feed"></div>
   <div id="tip"></div>
   <div id="markers"></div>
+  <canvas id="compass" width="420" height="34"></canvas>
   <div id="downBanner" hidden>Yiqildingiz. Sherigingiz sizni turg‘izishi kerak.</div>
   <div id="hint" hidden></div>
   <div id="warning" hidden>Cho‘chqa hujum qilmoqda!</div>
@@ -76,12 +77,18 @@
 <div id="rotateHint">Telefonni yotqizib ushlang</div>
 
 <div id="binoculars" hidden></div>
+
+<!-- Xarita: o'yin to'xtamaydi -->
+<div id="mapScreen" hidden>
+  <canvas id="mapCanvas" width="560" height="560"></canvas>
+  <p>Sariq belgi: daryodan o‘tish joyi. Yopish: Tab</p>
+</div>
 <div id="vignette"></div>
 
 <!-- Bosh menyu -->
 <section class="screen" id="menu">
   <div id="menuPanel">
-    <p class="eyebrow">Uch daqiqa, bitta miltiq</p>
+    <p class="eyebrow" id="rankLine"></p>
     <h1>O‘rmondagi <br>ovchi</h1>
     <p class="lead">Yaqinlashsangiz hayvonlar qochadi, o‘q ovozi esa butun atrofni uyg‘otadi. Sekin yuring, boshga mo‘ljal oling. Qizil yozilganlar sizga hujum qiladi.</p>
     <ul id="preyList"></ul>
@@ -100,6 +107,10 @@
       <dt><kbd>F</kbd></dt><dd>Bosh chirog‘i</dd>
       <dt><kbd>G</kbd></dt><dd>Sherikka belgi</dd>
       <dt><kbd>E</kbd></dt><dd>Sherikni turg‘izish</dd>
+      <dt><kbd>Tab</kbd></dt><dd>Xarita</dd>
+      <dt><kbd>T</kbd></dt><dd>Baliq tutish</dd>
+      <dt><kbd>Y</kbd> <kbd>U</kbd></dt><dd>Minora, tuzoq</dd>
+      <dt><kbd>K</kbd></dt><dd>Itga buyruq</dd>
       <dt><kbd>M</kbd></dt><dd>Ovozni o‘chirish</dd>
     </dl>
     <div class="actions">
@@ -107,6 +118,7 @@
       <button class="primary" id="missionsBtn">Missiyalar</button>
       <button class="primary" id="teamBtn">Birga ov</button>
       <button class="secondary" data-open-shop>Do‘kon</button>
+      <button class="secondary" id="trophiesBtn">Trofeylar</button>
       <button class="secondary" data-open-settings>Sozlamalar</button>
     </div>
     <p id="loadError" hidden>O‘yinni yuklab bo‘lmadi. Internet aloqasini va brauzerda WebGL yoqilganini tekshirib, sahifani yangilang.</p>
@@ -168,6 +180,10 @@
   <div class="card wide">
     <h2>Ov sharoiti</h2>
     <div id="setupRows"></div>
+    <div class="setting">
+      <span class="setting-head">Olib chiqiladigan jihozlar</span>
+      <div class="segmented" data-loadout></div>
+    </div>
     <p id="setupNote"></p>
     <div class="actions">
       <button class="primary" id="setupStartBtn">Ovga chiqish</button>
@@ -210,6 +226,10 @@
     </div>
     <ul id="lobbyPlayers"></ul>
     <p id="lobbyStatus"></p>
+    <div class="setting">
+      <span class="setting-head">Olib chiqiladigan jihozlar</span>
+      <div class="segmented" data-loadout></div>
+    </div>
     <div id="lobbyHostTools">
       <div class="lobby-row"><span>Sharoit: <b id="lobbyConditions"></b></span><button class="secondary" id="lobbyConditionsBtn">O‘zgartirish</button></div>
       <div class="lobby-row"><span>Vazifa: <b id="lobbyTaskName"></b></span><button class="secondary" id="lobbyTaskBtn">O‘zgartirish</button></div>
@@ -225,6 +245,10 @@
     <p class="eyebrow" id="briefConditions"></p>
     <h2 id="briefTitle"></h2>
     <p id="briefText"></p>
+    <div class="setting">
+      <span class="setting-head">Olib chiqiladigan jihozlar</span>
+      <div class="segmented" data-loadout></div>
+    </div>
     <div class="actions">
       <button class="primary" id="briefStartBtn">Ovga chiqish</button>
       <button class="secondary" id="briefBackBtn">Orqaga</button>
@@ -238,6 +262,18 @@
     <h2 id="missionsTitle">Missiyalar</h2>
     <ul id="missionCards"></ul>
     <button class="secondary" id="missionsBackBtn">Orqaga</button>
+  </div>
+</section>
+
+<!-- Trofey devori -->
+<section class="screen" id="trophies" hidden>
+  <div class="card wide">
+    <p class="eyebrow">Unvon</p>
+    <h2 id="trophyRank"></h2>
+    <p id="trophyXp"></p>
+    <table id="trophyTable"></table>
+    <ul id="trophyBadges"></ul>
+    <button class="secondary" id="trophiesBackBtn">Orqaga</button>
   </div>
 </section>
 
@@ -270,7 +306,7 @@
   window.THREE = THREE;
   window.mergeGeometries = mergeGeometries;
 
-  const BUILD = 3; // yangi versiya chiqqanda oshiriladi: brauzer eski fayllarni ishlatmasligi uchun
+  const BUILD = 4; // yangi versiya chiqqanda oshiriladi: brauzer eski fayllarni ishlatmasligi uchun
 
   const files = [
     'config.js',
@@ -281,6 +317,7 @@
     'forest.js',
     'animal-models.js',
     'animals.js',
+    'dog.js',
     'player.js',
     'weapons.js',
     'effects.js',
@@ -288,6 +325,10 @@
     'hud.js',
     'game.js',
     'missions.js',
+    'fishing.js',
+    'placeables.js',
+    'progress.js',
+    'map.js',
     'avatars.js',
     'relay.js',
     'network.js',

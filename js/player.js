@@ -13,6 +13,7 @@ const player = {
   id: 'me',
   down: false,   // birga o'ynaganda: joni tugab yiqilgan
   lampOn: false, // bosh chirog'i
+  onTower: null, // minora ustida bo'lsa, uning joyi
   noise: 0,      // shovqin darajasi: hayvonlar sezish masofasini shunga ko'paytiradi
   crouching: false,
   crouch: 0,     // 0 = tik turgan, 1 = to'liq egilgan
@@ -67,7 +68,7 @@ function updatePlayer(dt) {
 
   const forward = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - input.stickY;
   const strafe = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + input.stickX;
-  const throttle = Math.min(1, Math.hypot(forward, strafe)); // joystick qanchalik surilgan
+  const throttle = player.onTower ? 0 : Math.min(1, Math.hypot(forward, strafe)); // joystick qanchalik surilgan
   const moving = throttle > 0.12;
   const aiming = input.aiming && weapon.reloadLeft <= 0;
   const sprinting = moving && !aiming && (keys.ShiftLeft || keys.ShiftRight);
@@ -105,10 +106,17 @@ function updatePlayer(dt) {
     player.pos.z *= scale;
   }
   // Chuqurroq joyda o'yinchi loyga botmaydi: boshi suvdan yetarlicha baland qoladi
+  if (player.onTower) {
+    player.pos.x = player.onTower.x;
+    player.pos.z = player.onTower.z;
+    player.velocity.set(0, 0, 0);
+  }
+
   player.crouch = damp(player.crouch, player.crouching ? 1 : 0, 10, dt);
   const eyeHeight = lerp(cfg.eyeHeight, cfg.crouchEyeHeight, player.crouch);
   const lowestStand = conditions.frozen ? WATER_LEVEL : WATER_LEVEL - 0.55;
-  player.pos.y = Math.max(terrainHeight(player.pos.x, player.pos.z), lowestStand) + eyeHeight;
+  player.pos.y = Math.max(terrainHeight(player.pos.x, player.pos.z), lowestStand) + eyeHeight
+    + (player.onTower ? TOWER_HEIGHT : 0);
 
   // Hayvonlar shovqinni eshitadi: turgan odamni kechroq, yugurganni ertaroq sezadi.
   // Egilish va buta orasida turish bu masofani qisqartiradi, suvda shaloplash esa oshiradi.
@@ -118,7 +126,9 @@ function updatePlayer(dt) {
     * (hidden ? 0.6 : 1)
     * (moving && wading > 0.05 ? 1.3 : 1)
     * conditions.noise
-    * (owns('camo') ? 0.8 : 1)
+    * (isEquipped('camo') ? 0.8 : 1)
+    * (player.onTower ? 0.5 : 1) // minorada hid va shovqin yerga kamroq yetadi
+    * (dog.active && !dog.staying ? 1.15 : 1)
     * (player.lampOn && conditions.night ? 1.35 : 1) // tunda chiroq uzoqdan ko'rinadi
     * (ROLE_INFO[game.myRole]?.noise ?? 1);
   updateFieldHud(hidden);
@@ -162,11 +172,13 @@ function hintText(fromCenter, blockedByWater) {
     const percent = Math.round((game.reviveProgress / REVIVE_TIME) * 100);
     return `E tugmasini bosib turing: ${game.reviveTarget.name} (${percent}%)`;
   }
+  const fishingText = fishingHint();
+  if (fishingText) return fishingText;
   if (weapon.ammo === 0 && weapon.reloadLeft <= 0 && weapon.reserve > 0) return 'O‘q tugadi: R tugmasini bosing';
   if (weapon.ammo === 0 && weapon.reserve === 0) return 'O‘q qolmadi';
   if (blockedByWater) return 'Bu yer juda chuqur: sayoz joyni qidiring';
   if (fromCenter > CONFIG.worldRadius - 2) return 'O‘rmon chegarasi: ortga qayting';
-  return nearbyTrackLabel;
+  return dog.hint() ?? nearbyTrackLabel ?? fishingOffer();
 }
 
 /** Hayvon zarbasi: ovchi shu kompyuterdagi o'yinchi bo'lsa, zararni shu yerda hisoblaymiz. */

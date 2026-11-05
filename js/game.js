@@ -15,11 +15,12 @@ const MISSION_GOALS = { rabbit: 3, deer: 2, fox: 1, boar: 2, duck: 1, goose: 2, 
 /** Raund uchun tasodifiy uchta topshiriq. */
 function createMissions() {
   const activeKinds = new Set(animals.filter((animal) => !animal.dormant).map((animal) => animal.kind));
+  activeKinds.add('fish'); // baliqni qishda ham muz teshib tutish mumkin
   const available = Object.entries(MISSION_GOALS).filter(([kind]) => activeKinds.has(kind));
   const pool = available.map(([kind, goal]) => ({
     kind,
     goal,
-    text: `${SPECIES[kind].name}: ${goal} ta ovlash`,
+    text: `${SPECIES[kind].name}: ${goal} ta ${kind === 'fish' ? 'tutish' : 'ovlash'}`,
     reward: Math.ceil((SPECIES[kind].points * goal) / 15) * 5,
   }));
   pool.push({ headshot: true, goal: 2, text: 'Boshga 2 marta urish', reward: 30 });
@@ -62,7 +63,15 @@ function onAnimalKilled(animal, moment) {
   game.kills[kind]++;
   updateScoreHud();
   showPopup(`+${points} ${spec.name}${moment.headshot ? ' · boshga!' : ''}`);
-  if (network.isHost) broadcast({ t: 'kill', name: spec.name, points, headshot: moment.headshot });
+
+  // Trofey o'q uzgan o'yinchiga yoziladi
+  const shooterPos = moment.shooter?.hunter?.pos ?? player.pos;
+  const distance = animal.pos ? Math.hypot(animal.pos.x - shooterPos.x, animal.pos.z - shooterPos.z) : 0;
+  const shooterId = moment.shooter?.id ?? HOST_ID;
+  if (shooterId === HOST_ID) recordTrophy(kind, moment.headshot, distance);
+  if (network.isHost) {
+    broadcast({ t: 'kill', name: spec.name, points, headshot: moment.headshot, kind, distance, by: shooterId });
+  }
 
   for (const goal of game.missions) {
     if (goal.progress >= goal.goal || !goalMatches(goal, animal, moment)) continue;
@@ -123,7 +132,13 @@ function resetRound() {
 
   player.lampOn = conditions.night;
   player.down = false;
+  player.onTower = null;
   ui.downBanner.hidden = true;
+  game.towerBuilt = false;
+  game.dogReleased = false;
+  resetFishing();
+  clearPlaceables();
+  dog.enter(false);
 
   animals.forEach((animal) => {
     animal.spawned = false; // guruh a'zolari yangi joyda yo'lboshchisi yonida chiqishi uchun
@@ -160,6 +175,10 @@ function enterPlay() {
   ui.menu.hidden = ui.pause.hidden = ui.result.hidden = ui.setup.hidden = ui.missions.hidden = true;
   ui.hud.hidden = false;
   viewModel.visible = true;
+  if (!game.dogReleased) {
+    game.dogReleased = true;
+    dog.enter(isEquipped('dog'));
+  }
   document.body.classList.toggle('free-mouse', pointer.free);
   document.body.classList.add('playing');
   showTouchControls(true);
@@ -171,6 +190,7 @@ function releaseInput() {
   input.keys = {};
   input.aiming = input.fire = false;
   input.edgeTurn = input.stickX = input.stickY = 0;
+  ui.mapScreen.hidden = true;
   stopScoping();
   document.body.classList.remove('playing');
   showTouchControls(false);
@@ -226,6 +246,8 @@ function returnToMenu() {
   document.exitPointerLock?.();
   ui.hud.hidden = ui.pause.hidden = ui.result.hidden = true;
   ui.menu.hidden = false;
+  dog.enter(false);
+  updateRankLine();
   applySetup(profile.setup);
 }
 
@@ -315,8 +337,12 @@ function endRound(reason, won = false) {
     if (isRecord) profile.best = game.score;
   }
   profile.coins += coins;
+  const experience = Math.round(game.score / 2) + coins;
+  const promotion = addExperience(experience);
   saveProfile();
   rows.push(['Tanga', `+${coins} (jami ${profile.coins})`]);
+  rows.push(['Tajriba', `+${experience}`]);
+  if (promotion) rows.push(['Yangi unvon', promotion]);
 
   ui.finalReason.textContent = reason;
   ui.finalScore.textContent = game.score;

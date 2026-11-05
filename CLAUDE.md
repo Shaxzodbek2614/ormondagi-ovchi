@@ -17,7 +17,7 @@ Brauzerda ishlaydigan 3D ov o‘yini. Three.js, build bosqichi yo‘q. Foydalanu
 - Yangi fayl qo‘shsangiz, `index.html`dagi ro‘yxatga yozing.
 - Har chiqishda `index.html`dagi `BUILD` va `style.css?v=` raqamini oshiring, aks holda brauzer eski fayllarni ishlatadi.
 
-Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik, daryo, ko‘l), `scene.js` (sharoit qatlamlari, fasl shaderi), `animals.js` (SPECIES, Animal, xatti-harakat), `weapons.js`, `game.js` (raund, natija), `missions.js`, `team-missions.js`, `network.js`, `relay.js`, `team-round.js`, `lobby.js`, `controls.js`, `main.js` (sikl).
+Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik, daryo, ko‘l, o‘tish joylari), `scene.js` (sharoit qatlamlari, fasl shaderi), `animals.js` (SPECIES, Animal, Waterfowl, Fish), `dog.js`, `weapons.js`, `game.js` (raund, natija), `missions.js`, `fishing.js`, `placeables.js` (minora, tuzoq), `progress.js` (daraja, trofey), `map.js` (xarita, kompas), `team-missions.js`, `network.js`, `relay.js`, `team-round.js`, `lobby.js`, `controls.js` (tugmalar, do‘kon, jihoz tanlash), `main.js` (sikl).
 
 ## Muhim tushunchalar
 
@@ -28,6 +28,9 @@ Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik
 - **Oyna orqa fonda:** `requestAnimationFrame` to‘xtaydi, xonada Worker soati `simulate()`ni chaqiradi.
 - **Hayvon o‘lganda** 13–19 soniyada qayta tiriladi. Missiya sanayotgan hayvonlarga `staysDead` qo‘ying.
 - **Yangi tur qo‘shsangiz** hayvon raqamlari o‘zgaradi: `PROTOCOL_VERSION`ni oshiring.
+- **Ko‘p ko‘lli dunyo:** missiyada `world: { lakes: 11 }` bo‘lsa, `openMission` sessionStorage’ga yozib sahifani qayta yuklaydi, `config.js` shu qiymat bilan dunyo quradi.
+- **Jihozlar:** o‘yin mantig‘ida `owns()` emas, `isEquipped()` ishlating: o‘yinchi sotib olganini raundga olib chiqmasligi mumkin.
+- **Trofey** o‘q uzgan o‘yinchiga yoziladi: xost `kill` xabarida `by` yuboradi.
 
 ## Sinash
 
