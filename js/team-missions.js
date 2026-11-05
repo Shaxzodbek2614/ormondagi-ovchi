@@ -90,12 +90,13 @@ const TEAM_MISSIONS = [
         wolf.spawn(0);
         placeAnimal(wolf, x, z);
         wolf.relentless = true;
+        wolf.staysDead = true;
         wolf.setState('charge');
       }
     },
     tick(dt) {
       const goal = game.missions[0];
-      const alive = this.wave.filter((wolf) => wolf.alive && wolf.spawned);
+      const alive = this.wave.filter((wolf) => wolf.alive);
       if (this.wave.length && alive.length === 0) {
         goal.progress++;
         updateMissionHud();
@@ -114,7 +115,8 @@ const TEAM_MISSIONS = [
       }
     },
     status() {
-      return { camp: true, text: `Lager: ${Math.max(0, Math.round(this.camp.hp))}%` };
+      const wolves = this.wave.filter((wolf) => wolf.alive).length;
+      return { camp: true, text: `Lager: ${Math.max(0, Math.round(this.camp.hp))}% · Bo‘ri: ${wolves}` };
     },
   },
   {

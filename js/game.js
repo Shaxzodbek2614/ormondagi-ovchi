@@ -14,7 +14,9 @@ const MISSION_GOALS = { rabbit: 3, deer: 2, fox: 1, boar: 2, duck: 1, wolf: 2, b
 
 /** Raund uchun tasodifiy uchta topshiriq. */
 function createMissions() {
-  const pool = Object.entries(MISSION_GOALS).map(([kind, goal]) => ({
+  const activeKinds = new Set(animals.filter((animal) => !animal.dormant).map((animal) => animal.kind));
+  const available = Object.entries(MISSION_GOALS).filter(([kind]) => activeKinds.has(kind));
+  const pool = available.map(([kind, goal]) => ({
     kind,
     goal,
     text: `${SPECIES[kind].name}: ${goal} ta ovlash`,
@@ -85,6 +87,14 @@ function useMedkit() {
 }
 
 function resetRound() {
+  // Topshiriqlar faqat shu raundda bor hayvonlardan tanlanishi uchun bu birinchi bajariladi.
+  // Qishda issiqsevarlar yo'q, oson qiyinlikda yirtqichlar kamroq.
+  for (const animal of animals) {
+    animal.dormant = (conditions.frozen && Boolean(animal.spec.warmOnly))
+      || (Boolean(animal.spec.aggressive) && animal.rosterRank >= conditions.predators)
+      || Boolean(animal.spec.missionOnly);
+  }
+
   Object.assign(game, {
     score: 0,
     shots: 0,
@@ -118,10 +128,6 @@ function resetRound() {
   animals.forEach((animal) => {
     animal.spawned = false; // guruh a'zolari yangi joyda yo'lboshchisi yonida chiqishi uchun
     animal.state = 'graze';
-    // Qishda issiqsevarlar yo'q, oson qiyinlikda yirtqichlar kamroq
-    animal.dormant = (conditions.frozen && Boolean(animal.spec.warmOnly))
-      || (Boolean(animal.spec.aggressive) && animal.rosterRank >= conditions.predators)
-      || Boolean(animal.spec.missionOnly);
   });
   // Yirtqichlar boshlanishda uzoqroqda bo'ladi, o'yinchiga tayyorlanishga vaqt qoladi
   animals.forEach((animal) => {

@@ -188,6 +188,7 @@ class Animal {
     this.farClock = 0;
     this.rearAmount = 0;
     this.relentless = false; // true bo'lsa, uzoqlashsa ham quvishni to'xtatmaydi
+    this.staysDead = false;
     this.sightClock = Math.random() * 0.4;
     this.sightBlocked = false;
     this.trackTravel = 0;
@@ -297,6 +298,7 @@ class Animal {
 
   update(dt) {
     if (!this.spawned) {
+      if (this.staysDead) return; // missiya sanayotgan hayvon qayta tirilmaydi
       this.respawnIn -= dt;
       if (this.respawnIn <= 0) this.spawn(60);
       return;
