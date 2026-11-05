@@ -37,6 +37,7 @@
     <div id="teamLine"></div>
   </div>
 
+  <ol id="board" hidden></ol>
   <div class="plate" id="fieldPlate">
     <div class="field-row"><span class="label">Shamol</span><i id="windArrow"></i></div>
     <div class="field-row"><span class="label">Shovqin</span><div class="bar" id="noiseBar"><i></i></div></div>
@@ -234,9 +235,15 @@
     <div id="lobbyHostTools">
       <div class="lobby-row"><span>Sharoit: <b id="lobbyConditions"></b></span><button class="secondary" id="lobbyConditionsBtn">O‘zgartirish</button></div>
       <div class="lobby-row"><span>Vazifa: <b id="lobbyTaskName"></b></span><button class="secondary" id="lobbyTaskBtn">O‘zgartirish</button></div>
-      <button class="primary" id="lobbyStartBtn">Raundni boshlash</button>
+      <div class="setting">
+        <span class="setting-head">Botlar soni: yolg‘iz bo‘lsangiz, ular sherik bo‘ladi</span>
+        <div class="segmented" id="lobbyBots"></div>
+      </div>
     </div>
-    <button class="secondary" id="lobbyLeaveBtn">Xonadan chiqish</button>
+    <div class="actions">
+      <button class="primary" id="lobbyStartBtn">Raundni boshlash</button>
+      <button class="secondary" id="lobbyLeaveBtn">Xonadan chiqish</button>
+    </div>
   </div>
 </section>
 
@@ -331,6 +338,7 @@
     'progress.js',
     'map.js',
     'avatars.js',
+    'bots.js',
     'relay.js',
     'network.js',
     'team-missions.js',

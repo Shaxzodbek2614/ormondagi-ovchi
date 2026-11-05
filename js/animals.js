@@ -80,6 +80,7 @@ const SPECIES = {
 
 const animals = [];
 const ANIMAL_VIEW_DISTANCE = 175;
+const FLEE_TURN_DISTANCE = 8;
 let elapsed = 0; // o'yin boshlanganidan beri o'tgan vaqt
 
 // Shamol vaqti-vaqti bilan yo'nalishini o'zgartiradi. Burchak shamol qayerga esayotganini bildiradi.
@@ -262,11 +263,13 @@ class Animal {
   /** Guruhdagi boshqa hayvonlarni ham ogohlantiradi. */
   alertGroup() {
     for (const mate of this.group?.members ?? []) {
-      if (mate !== this && mate.alive && mate.spawned) mate.startle();
+      if (mate !== this && mate.alive && mate.spawned) mate.startle(this.fleeFrom);
     }
   }
 
-  beginFlee() {
+  /** Hayvon o'zini hurkitgan ovchidan qochadi: haydab ov shunga tayanadi. */
+  beginFlee(from = this.prey) {
+    this.fleeFrom = from;
     this.setState('flee', randRange(4, 7));
     this.alertGroup();
   }
@@ -286,13 +289,13 @@ class Animal {
   }
 
   /** O'q ovozi yoki jarohat: endi kutib turmaydi. */
-  startle() {
+  startle(from) {
     if (['flee', 'charge', 'recover', 'stalk', 'rear', 'trapped'].includes(this.state)) return;
     if (this.spec.aggressive) {
       if (this.spec.voice) sound[this.spec.voice](this.pos);
       this.beginAttack();
     } else {
-      this.beginFlee();
+      this.beginFlee(from);
     }
   }
 
@@ -407,18 +410,25 @@ class Animal {
         }
         return 0;
 
-      case 'flee':
+      case 'flee': {
         this.headGoal = 0.1;
-        this.wantedHeading = Math.atan2(this.pos.x - prey.pos.x, this.pos.z - prey.pos.z)
+        // Yo'lda chiqqan ovchidan burilmaydi, faqat juda yaqinlashsa undan qochadi
+        const danger = distance < FLEE_TURN_DISTANCE ? prey : this.fleeFrom ?? prey;
+        this.wantedHeading = Math.atan2(this.pos.x - danger.pos.x, this.pos.z - danger.pos.z)
           + Math.sin(this.gait * 0.13) * 0.5;
         if (spec.zigzag) this.wantedHeading += Math.sin(this.gait * 0.45) * 0.9;
         // Chegaraga yetganda burilib, dunyo markazi tomon qochadi
         if (Math.hypot(this.pos.x, this.pos.z) > CONFIG.worldRadius - 12) this.faceTowards(0, 0);
         if (this.stateTime <= 0) {
-          if (distance > spec.senseRange * 1.5) this.setState('graze', randRange(1, 3));
-          else this.stateTime = 2;
+          if (distance > spec.senseRange * 1.5) {
+            this.setState('graze', randRange(1, 3));
+          } else {
+            this.fleeFrom = prey;
+            this.stateTime = 2;
+          }
         }
         return spec.runSpeed;
+      }
 
       case 'charge':
         this.headGoal = 0.3;

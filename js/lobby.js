@@ -68,9 +68,20 @@ function renderLobby() {
     item.style.color = HUNTER_COLORS[member.colorIndex % HUNTER_COLORS.length];
     return item;
   }));
-  ui.lobbyHostTools.hidden = !network.isHost;
+  ui.lobbyHostTools.hidden = ui.lobbyStartBtn.hidden = !network.isHost;
   ui.lobbyConditions.textContent = buildConditions(profile.setup).name;
   ui.lobbyTaskName.textContent = network.selectedTeamMission?.title ?? 'Erkin birga ov';
+  ui.lobbyBots.replaceChildren(...[0, 1, 2, 3].map((count) => {
+    const button = document.createElement('button');
+    button.textContent = count;
+    button.setAttribute('aria-pressed', String(profile.botCount === count));
+    button.addEventListener('click', () => {
+      profile.botCount = count;
+      saveProfile();
+      syncBots();
+    });
+    return button;
+  }));
 }
 
 function showLobby() {

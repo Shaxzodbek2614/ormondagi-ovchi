@@ -117,7 +117,7 @@ async function openRoom() {
   network.active = network.isHost = true;
   network.myId = HOST_ID;
   network.roster.set(HOST_ID, { id: HOST_ID, name: cleanName(profile.nickname), colorIndex: 0, connection: null, hunter: player });
-  renderLobby();
+  syncBots();
   setLobbyStatus('Xona ochilmoqda…');
 
   // Mijozlarni ikki yo'lda kutamiz: to'g'ridan-to'g'ri va server orqali
@@ -176,8 +176,13 @@ function welcomeClient(connection, hello) {
     setTimeout(() => connection.close(), 300);
   };
   if (hello.version !== PROTOCOL_VERSION) return refuse('O‘yin versiyangiz boshqa. Sahifani yangilang.');
-  if (network.roster.size >= MAX_PLAYERS) return refuse(`Xona to‘lgan: ${MAX_PLAYERS} kishidan ko‘p bo‘lmaydi.`);
   if (hello.checksum !== worldChecksum()) return refuse('O‘rmon mos kelmadi. Sahifani yangilab, qayta kiring.');
+  // Xona to'lgan bo'lsa, bot haqiqiy do'stga joy bo'shatadi
+  if (network.roster.size >= MAX_PLAYERS) {
+    const bot = [...network.roster.values()].find((member) => member.isBot);
+    if (!bot) return refuse(`Xona to‘lgan: ${MAX_PLAYERS} kishidan ko‘p bo‘lmaydi.`);
+    removeBot(bot);
+  }
 
   const id = `p${network.nextClientNumber++}`;
   const used = new Set([...network.roster.values()].map((member) => member.colorIndex));
@@ -203,6 +208,7 @@ function dropClient(connection) {
   broadcast({ t: 'left', id: member.id, name: member.name, roster: rosterList() });
   showPopup(`${member.name} chiqib ketdi`);
   renderLobby();
+  if (game.state !== 'playing') syncBots();
   checkTeamWipe();
 }
 

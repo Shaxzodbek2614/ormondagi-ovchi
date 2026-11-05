@@ -64,6 +64,8 @@ function onAnimalKilled(animal, moment) {
   updateScoreHud();
   showPopup(`+${points} ${spec.name}${moment.headshot ? ' · boshga!' : ''}`);
 
+  game.activeMission?.onKill?.(animal, moment, points);
+
   // Trofey o'q uzgan o'yinchiga yoziladi
   const shooterPos = moment.shooter?.hunter?.pos ?? player.pos;
   const distance = animal.pos ? Math.hypot(animal.pos.x - shooterPos.x, animal.pos.z - shooterPos.z) : 0;
@@ -298,7 +300,8 @@ function onPointerLockChange() {
  */
 function endRound(reason, won = false) {
   if (network.isHost && game.mode === 'team') {
-    broadcast({ t: 'end', reason, won, score: game.score, kills: game.kills });
+    game.teamStatus = collectTeamStatus();
+    broadcast({ t: 'end', reason, won, score: game.score, kills: game.kills, status: game.teamStatus });
   }
   game.state = 'over';
   player.noise = 0;
@@ -321,7 +324,12 @@ function endRound(reason, won = false) {
   if (accuracyBonus) rows.push(['Aniqlik bonusi', `+${accuracyBonus}`]);
 
   let coins, summary, nextMission = null;
-  if (game.activeMission) {
+  if (game.activeMission?.versus) {
+    const outcome = settleVersus();
+    coins = outcome.coins;
+    summary = outcome.summary;
+    rows.unshift(...outcome.rows);
+  } else if (game.activeMission) {
     const outcome = settleMission(won);
     coins = outcome.coins;
     nextMission = outcome.next ?? null;
@@ -365,5 +373,5 @@ function updateRound(dt) {
   game.timeLeft = Math.max(0, game.timeLeft - dt);
   updateTimeHud();
   if (game.activeMission) updateMission(dt);
-  if (game.state === 'playing' && game.timeLeft === 0) endRound('Vaqt tugadi');
+  if (game.state === 'playing' && game.timeLeft === 0) endRound('Vaqt tugadi', Boolean(game.activeMission?.versus));
 }

@@ -23,7 +23,8 @@ const isNumber = Number.isFinite;
 
 function addTeamMate(member) {
   if (member.id === network.myId || member.hunter) return;
-  member.hunter = new RemoteHunter(member.id, member.name, member.colorIndex);
+  const Body = member.isBot ? BotHunter : RemoteHunter;
+  member.hunter = new Body(member.id, member.name, member.colorIndex);
   hunters.push(member.hunter);
 }
 
@@ -59,6 +60,7 @@ function beginTeamRound(setup, teamMission) {
   hunters.push(player, ...members.map((member) => member.hunter).filter((hunter) => hunter && hunter !== player));
   for (const member of members) {
     if (member.hunter) member.hunter.down = false;
+    if (member.isBot) member.hunter.reset();
     member.lastSeen = performance.now(); // xonada kutilgan vaqt uzilish deb hisoblanmasin
   }
   game.reviveProgress = 0;
@@ -92,6 +94,9 @@ function startTeamRound() {
   mission?.prepare?.();
   assignRoles(mission);
   moveToSpawn(network.spawns[HOST_ID]);
+  for (const member of network.roster.values()) {
+    if (member.isBot) member.hunter.placeAt(network.spawns[member.id]);
+  }
   broadcast(buildStartMessage());
   requestLock();
 }
@@ -126,7 +131,7 @@ function sendWorld() {
   game.teamStatus = collectTeamStatus();
   renderTeamStatus(game.teamStatus);
   const players = [...network.roster.values()].map((member) => [
-    member.id, member.id === HOST_ID ? localPlayerState() : member.lastState ?? null,
+    member.id, member.id === HOST_ID ? localPlayerState() : member.hunter?.isBot ? member.hunter.stateArray() : member.lastState ?? null,
   ]);
   const shared = {
     t: 'world',
@@ -232,9 +237,9 @@ const HOST_MESSAGES = {
   },
 
   shot(member, { radius }) {
-    if (!member.hunter || !isNumber(radius)) return;
+    if (!member.hunter || !isNumber(radius) || radius <= 0) return; // ovozsiz qurol
     const { x, z } = member.hunter.pos;
-    alarmAnimals(x, z, clamp(radius, 0, 60));
+    alarmAnimals(x, z, clamp(radius, 0, 80));
     broadcast({ t: 'bang', id: member.id, x, z }, member.id);
     if (member.id !== HOST_ID) sound.distantShot({ x, z });
   },
@@ -259,6 +264,7 @@ const HOST_MESSAGES = {
     const target = network.roster.get(String(id));
     if (!target?.hunter?.down) return;
     if (target.id === HOST_ID) reviveSelf();
+    else if (target.isBot) target.hunter.revive();
     else sendTo(target.connection, { t: 'revived' });
     target.hunter.down = false;
   },
@@ -349,9 +355,10 @@ const CLIENT_MESSAGES = {
   revived() {
     reviveSelf();
   },
-  end({ reason, won, score, kills }) {
+  end({ reason, won, score, kills, status }) {
     game.score = score;
     game.kills = { ...game.kills, ...kills };
+    renderTeamStatus(status);
     endRound(String(reason), Boolean(won));
   },
 };

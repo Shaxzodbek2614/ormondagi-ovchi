@@ -30,6 +30,8 @@ const ui = {
   warning: byId('warning'),
   vignette: byId('vignette'),
   hitArc: byId('hitArc'),
+  board: byId('board'),
+  lobbyBots: byId('lobbyBots'),
   opticScope: byId('opticScope'),
   compass: byId('compass'),
   mapScreen: byId('mapScreen'),

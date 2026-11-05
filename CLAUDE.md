@@ -17,7 +17,7 @@ Brauzerda ishlaydigan 3D ov o‘yini. Three.js, build bosqichi yo‘q. Foydalanu
 - Yangi fayl qo‘shsangiz, `index.html`dagi ro‘yxatga yozing.
 - Har chiqishda `index.html`dagi `BUILD` va `style.css?v=` raqamini oshiring, aks holda brauzer eski fayllarni ishlatadi.
 
-Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik, daryo, ko‘l, o‘tish joylari), `scene.js` (sharoit qatlamlari, fasl shaderi), `animals.js` (SPECIES, Animal, Waterfowl, Fish), `dog.js`, `weapons.js`, `game.js` (raund, natija), `missions.js`, `fishing.js`, `placeables.js` (minora, tuzoq), `progress.js` (daraja, trofey), `map.js` (xarita, kompas), `team-missions.js`, `network.js`, `relay.js`, `team-round.js`, `lobby.js`, `controls.js` (tugmalar, do‘kon, jihoz tanlash), `main.js` (sikl).
+Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik, daryo, ko‘l, o‘tish joylari), `scene.js` (sharoit qatlamlari, fasl shaderi), `animals.js` (SPECIES, Animal, Waterfowl, Fish), `dog.js`, `weapons.js`, `game.js` (raund, natija), `missions.js`, `fishing.js`, `placeables.js` (minora, tuzoq), `progress.js` (daraja, trofey), `map.js` (xarita, kompas), `bots.js` (bot sheriklar), `team-missions.js`, `network.js`, `relay.js`, `team-round.js`, `lobby.js`, `controls.js` (tugmalar, do‘kon, jihoz tanlash), `main.js` (sikl).
 
 ## Muhim tushunchalar
 
@@ -31,6 +31,11 @@ Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik
 - **Ko‘p ko‘lli dunyo:** missiyada `world: { lakes: 11 }` bo‘lsa, `openMission` sessionStorage’ga yozib sahifani qayta yuklaydi, `config.js` shu qiymat bilan dunyo quradi.
 - **Jihozlar:** o‘yin mantig‘ida `owns()` emas, `isEquipped()` ishlating: o‘yinchi sotib olganini raundga olib chiqmasligi mumkin.
 - **Trofey** o‘q uzgan o‘yinchiga yoziladi: xost `kill` xabarida `by` yuboradi.
+- **Qurollar:** `WEAPONS` jadvali o‘zgarmaydi. O‘yin mantig‘ida `weapon.gun` ishlating: `gunStats(id)` unga `profile.weaponLevels`dagi darajani qo‘shadi. Yangi qurol uchun `WEAPONS`, `WEAPON_ORDER` va `weaponShapes`ga yozing.
+- **Botlar:** xost boshqaradi, `network.roster`da `isBot` a’zo, aloqasi yo‘q. Boshqalarga oddiy sherik bo‘lib ko‘rinadi: holati `sendWorld`, zarbasi `applyHit` orqali o‘tadi. Xona to‘lsa, bot do‘stga joy beradi. Yiqilgan bot 30 soniyada o‘zi turadi.
+- **`botPlan(bot)`:** jamoa missiyasi botga vazifa beradi: `{ moveTo, target, sure, sneak }`. Hujum qilayotgan yirtqichni bot baribir otadi, faqat qurolsiz rolda otmaydi.
+- **Qochish:** hayvon `fleeFrom` ovchidan qochadi, boshqa ovchi 8 metrga yaqinlashsa undan. Har kadrda eng yaqin ovchidan qochsa, bug‘u zonaga kirmay qaytadi va Haydab ov ishlamaydi.
+- **Zona janggi:** `versus: true` missiya. `goals` bo‘sh, vaqt tugashi g‘alaba hisoblanadi, ochkoni `board` ko‘rsatadi, `settleVersus` g‘olibga to‘liq, qolganlarga yarim mukofot beradi.
 
 ## Sinash
 
@@ -38,6 +43,7 @@ Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik
 - Global o‘zgaruvchilarga `javascript_tool`dan to‘g‘ridan-to‘g‘ri murojaat qilsa bo‘ladi (`player`, `game`, `animals`).
 - Pointer lock panelda ishlamaydi, o‘yin erkin sichqoncha rejimiga o‘tadi. `document.hidden` false bo‘lsa ham panel yashirin bo‘lishi mumkin: FPS o‘lchovlariga ishonmang.
 - Server yo‘lini majburlash: manzilga `?relay=1` qo‘shing. Ikki tab bilan bitta kompyuterda WebRTC doim ishlaydi, haqiqiy tarmoqni aks ettirmaydi.
+- Botlar va missiyalarni tez sinash: `simulate(.05)`ni tsiklda chaqiring. Odam o‘yinchi turib qolsa, hayvon uni yiqitadi: `player.hp`ni tiklab turing, aks holda raund vaqtidan oldin tugaydi.
 
 ## Joylash
 

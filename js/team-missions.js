@@ -48,6 +48,29 @@ const TEAM_MISSIONS = [
     spawnFor(role, index) {
       return role === 'ambusher' ? nearbyPoint(this.zone.x, this.zone.z, 2, 8) : teamSpawnPoint(index);
     },
+    /** Zonaga eng yaqin bug'uni tanlab, uni bot bilan zona orasiga oladi. */
+    driverPlan(bot) {
+      const { zone } = this;
+      const fromZone = (animal) => Math.hypot(animal.pos.x - zone.x, animal.pos.z - zone.z);
+      const outside = animals.filter((animal) => animal.kind === 'deer' && animal.alive && animal.spawned
+        && !animal.dormant && fromZone(animal) > zone.radius);
+      if (!outside.length) return { moveTo: zone };
+      const deer = outside.reduce((best, animal) => (fromZone(animal) < fromZone(best) ? animal : best));
+
+      const ux = (deer.pos.x - zone.x) / fromZone(deer), uz = (deer.pos.z - zone.z) / fromZone(deer);
+      const offsetX = bot.target.x - deer.pos.x, offsetZ = bot.target.z - deer.pos.z;
+      if (offsetX * ux + offsetZ * uz > 8) return { moveTo: { x: deer.pos.x + ux * 10, z: deer.pos.z + uz * 10 } };
+
+      // Bot noto'g'ri tomonda: bug'uni hurkitmay, yonidan ortiga aylanib o'tadi
+      const side = offsetZ * ux - offsetX * uz > 0 ? 1 : -1;
+      return { sneak: true, moveTo: { x: deer.pos.x - uz * side * 36 + ux * 14, z: deer.pos.z + ux * side * 36 + uz * 14 } };
+    },
+    botPlan(bot) {
+      if (network.roles[bot.id] === 'driver') return this.driverPlan(bot);
+      const inZone = (animal) => animal.kind === 'deer'
+        && Math.hypot(animal.pos.x - this.zone.x, animal.pos.z - this.zone.z) < this.zone.radius;
+      return { moveTo: bot.distanceTo(this.zone) > 8 ? this.zone : null, target: bot.nearestAnimal(inZone) };
+    },
     annotate(moment, animal) {
       moment.inZone = Math.hypot(animal.pos.x - this.zone.x, animal.pos.z - this.zone.z) < this.zone.radius;
     },
@@ -81,6 +104,11 @@ const TEAM_MISSIONS = [
         animal.dormant = true;
         animal.root.visible = false;
       }
+    },
+    botPlan(bot) {
+      const wolf = bot.nearestAnimal((animal) => this.wave.includes(animal), 140);
+      if (wolf) return { target: wolf, moveTo: bot.distanceTo(wolf.pos) > 26 ? wolf.pos : null };
+      return { moveTo: bot.distanceTo(this.camp.pos) > 9 ? this.camp.pos : null };
     },
     startWave(number) {
       const pool = animals.filter((animal) => animal.kind === 'wolf' && (!animal.alive || animal.dormant || !animal.spawned));
@@ -137,6 +165,16 @@ const TEAM_MISSIONS = [
       this.boss.root.scale.setScalar(1.7);
       this.bossHp = this.boss.hp = 30;
     },
+    botPlan(bot) {
+      const { boss } = this;
+      if (!boss.alive) return {};
+      // Ayiq botni quvsa, u qochib chalg'itadi. Aks holda orqasiga o'tib otadi.
+      if (boss.prey === bot && boss.state !== 'graze') {
+        return { moveTo: { x: bot.target.x * 2 - boss.pos.x, z: bot.target.z * 2 - boss.pos.z } };
+      }
+      const behind = { x: boss.pos.x - Math.sin(boss.heading) * 16, z: boss.pos.z - Math.cos(boss.heading) * 16 };
+      return { moveTo: behind, target: boss };
+    },
     adjustPower(animal, power, shooter) {
       if (animal !== this.boss) return power;
       const behind = isBehind(animal, shooter.hunter.pos.x, shooter.hunter.pos.z);
@@ -176,6 +214,13 @@ const TEAM_MISSIONS = [
         animal.hp = animal.spec.hp;
         animal.setState('pose', 999); // nishon joyida turadi
       }
+    },
+    botPlan(bot) {
+      // Bot birinchi bo'lib otmaydi: sherik bittasini otgach, ikkinchisini darrov uradi
+      const free = this.marks.map((id) => animals[id]).find((animal) => animal.id !== this.firstHit?.id);
+      if (!free) return {};
+      const moveTo = bot.distanceTo(free.pos) > 24 ? free.pos : null;
+      return this.firstHit && this.firstHit.by !== bot.id ? { moveTo, target: free, sure: true } : { moveTo };
     },
     onHit(animal, part, shooter) {
       if (!this.marks.includes(animal.id)) return false;
@@ -228,6 +273,24 @@ const TEAM_MISSIONS = [
       bringAnimals('deer', 10, 0, 0, 40, 90);
       bringAnimals('boar', 4, 0, 0, 50, 90);
     },
+    botPlan(bot) {
+      const leader = hunters.find((hunter) => !hunter.isBot && !hunter.immobile) ?? player;
+      if (network.roles[bot.id] === 'observer') {
+        // Kuzatuvchi bot odam otuvchiga yaqin hayvonni vaqti-vaqti bilan belgilab beradi
+        if (elapsed > (bot.nextSpot ?? 0)) {
+          bot.nextSpot = elapsed + 5;
+          const animal = bot.nearestAnimal((candidate) => !candidate.spec.aggressive, 110);
+          if (animal) {
+            this.onPing(animal.pos.x, animal.pos.z);
+            HOST_MESSAGES.ping(network.roster.get(bot.id), { x: animal.pos.x, y: animal.pos.y, z: animal.pos.z });
+          }
+        }
+        return { moveTo: bot.distanceTo(leader.pos) > 20 ? leader.pos : null };
+      }
+      const marked = [...this.marks.keys()].map((id) => animals[id]).find((animal) => animal.alive);
+      if (!marked) return { moveTo: bot.distanceTo(leader.pos) > 14 ? leader.pos : null };
+      return { target: marked, moveTo: bot.distanceTo(marked.pos) > 26 ? marked.pos : null };
+    },
     onPing(x, z) {
       const animal = animals.find((candidate) => candidate.alive && candidate.spawned && !candidate.dormant
         && Math.hypot(candidate.pos.x - x, candidate.pos.z - z) < 8);
@@ -243,6 +306,70 @@ const TEAM_MISSIONS = [
     },
     status() {
       return { marks: [...this.marks.keys()], text: 'Faqat belgilangan nishonni oting' };
+    },
+  },
+  {
+    id: 'zone-duel',
+    title: 'Zona janggi',
+    brief: 'Musobaqa: hamma bitta zonada, faqat zona ichidagi ov hisoblanadi. Vaqt tugaganda eng ko‘p ochko olgan g‘olib.',
+    minPlayers: 1,
+    versus: true,
+    setup: { time: 'day', weather: 'clear', season: 'summer', wind: 'calm', difficulty: 'normal', duration: '300' },
+    goals: [],
+    reward: 160,
+    prepare() {
+      const center = nearbyPoint(0, 0, 0, 8);
+      this.zone = { x: center.x, z: center.z, radius: 60 };
+      this.scores = new Map([...network.roster.keys()].map((id) => [id, 0]));
+      this.restockClock = 0;
+      this.restock();
+    },
+    spawnFor(role, index) {
+      const angle = (index / MAX_PLAYERS) * TAU;
+      return nearbyPoint(this.zone.x + Math.cos(angle) * 44, this.zone.z + Math.sin(angle) * 44, 0, 4);
+    },
+    isInside(position) {
+      return Math.hypot(position.x - this.zone.x, position.z - this.zone.z) < this.zone.radius;
+    },
+    /** Zonada doim ov bo'lsin: tashqaridagi hayvonlar ichkariga olib kelinadi. */
+    restock() {
+      const prey = animals.filter((animal) => ['deer', 'rabbit', 'boar', 'fox'].includes(animal.kind)
+        && animal.alive && animal.spawned && !animal.dormant);
+      const missing = 14 - prey.filter((animal) => this.isInside(animal.pos)).length;
+      const outside = prey.filter((animal) => !this.isInside(animal.pos))
+        .sort(() => Math.random() - 0.5) // turlari aralash bo'lsin
+        .slice(0, Math.max(missing, 0));
+      for (const animal of outside) {
+        const { x, z } = nearbyPoint(this.zone.x, this.zone.z, 8, this.zone.radius - 4);
+        const seen = hunters.some((hunter) => Math.hypot(hunter.pos.x - x, hunter.pos.z - z) < 16);
+        if (!seen) placeAnimal(animal, x, z);
+      }
+    },
+    tick(dt) {
+      this.restockClock -= dt;
+      if (this.restockClock <= 0) {
+        this.restockClock = 5;
+        this.restock();
+      }
+    },
+    annotate(moment, animal) {
+      moment.inZone = this.isInside(animal.pos);
+    },
+    onKill(animal, moment, points) {
+      if (!moment.inZone) return;
+      const id = moment.shooter?.id ?? HOST_ID;
+      this.scores.set(id, (this.scores.get(id) ?? 0) + points);
+    },
+    botPlan(bot) {
+      const prey = bot.nearestAnimal((animal) => this.isInside(animal.pos));
+      if (!prey) return { moveTo: bot.distanceTo(this.zone) > 20 ? this.zone : null };
+      return { target: prey, moveTo: bot.distanceTo(prey.pos) > 34 ? prey.pos : null };
+    },
+    status() {
+      const board = [...this.scores.entries()]
+        .map(([id, score]) => ({ id, score, name: network.roster.get(id)?.name ?? 'Ovchi' }))
+        .sort((a, b) => b.score - a.score);
+      return { zone: this.zone, board, text: 'Zona janggi' };
     },
   },
 ];
@@ -283,6 +410,34 @@ function createCamp() {
 
 const campModel = createCamp();
 
+/** Musobaqa jadvali: o'rin, ism, ochko. */
+function renderBoard(board) {
+  ui.board.hidden = !board;
+  if (!board) return;
+  ui.board.replaceChildren(...board.map(({ id, name, score }, index) => {
+    const row = document.createElement('li');
+    row.classList.toggle('mine', id === network.myId);
+    row.textContent = `${index + 1}. ${cleanName(name)}: ${score}`;
+    return row;
+  }));
+  const mine = board.find(({ id }) => id === network.myId);
+  if (mine) ui.score.textContent = mine.score;
+}
+
+/** Musobaqa natijasi: g'olibga to'liq mukofot, qolganlarga yarmi. */
+function settleVersus() {
+  const mission = game.activeMission;
+  const board = game.teamStatus?.board ?? [];
+  const place = board.findIndex(({ id }) => id === network.myId) + 1;
+  const first = place === 1 && board[0].score > 0;
+  profile.teamMissions[mission.id] = Math.max(profile.teamMissions[mission.id] ?? 0, first ? 3 : 1);
+  return {
+    coins: Math.round(mission.reward * (first ? 1 : 0.5)),
+    summary: first ? 'G‘olib siz!' : `Siz ${place}-o‘rindasiz`,
+    rows: board.map(({ name, score }, index) => [`${index + 1}. ${cleanName(name)}`, `${score} ochko`]),
+  };
+}
+
 function applyRole(role) {
   if (game.myRole === role) return;
   game.myRole = role ?? null;
@@ -304,6 +459,7 @@ function renderTeamStatus(status) {
     zoneWall.scale.set(radius, 1, radius);
   }
   campModel.visible = Boolean(status?.camp);
+  renderBoard(status?.board);
   if (isNumber(status?.boss)) animals[status.boss]?.root.scale.setScalar(1.7);
   applyRole(status?.roles?.[network.myId]);
 }

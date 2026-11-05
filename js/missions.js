@@ -296,7 +296,7 @@ function updateMission(dt) {
     game.tipClock = 13;
   }
 
-  const allDone = game.missions.every((goal) => goal.progress >= goal.goal);
+  const allDone = game.missions.length > 0 && game.missions.every((goal) => goal.progress >= goal.goal);
   if (allDone) {
     // G'alaba bir lahza kechikadi: o'yinchi oxirgi ovini ko'rib olsin
     game.winDelay = (game.winDelay ?? 1.4) - dt;
