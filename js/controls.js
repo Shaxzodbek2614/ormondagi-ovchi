@@ -10,7 +10,8 @@ document.addEventListener('pointerlockerror', onLockFailed);
 /** Sichqoncha yoki barmoq siljishini kamera burilishiga aylantiradi. */
 function turnView(dx, dy) {
   // Mo'ljalga olganda kamera sekinroq aylanadi, shunda uzoqdagi nishonni ushlash oson
-  const zoom = lerp(lerp(1, 0.55, player.aim), 0.22, player.scope);
+  const aimZoom = weapon.gun.aimFov ? 0.24 : 0.55;
+  const zoom = lerp(lerp(1, aimZoom, player.aim), 0.22, player.scope);
   const sensitivity = CONFIG.player.lookSensitivity * profile.settings.sensitivity * zoom;
   player.yaw -= dx * sensitivity;
   player.pitch = clamp(player.pitch - dy * sensitivity, -1.45, 1.45);
@@ -70,9 +71,9 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'KeyU') useTrap();
   if (event.code === 'KeyK' && dog.active) dog.staying = !dog.staying;
   if (event.code === 'KeyG' && game.mode === 'team') placePing();
-  if (event.code === 'Digit1') trySwitchWeapon('rifle');
-  if (event.code === 'Digit2') trySwitchWeapon('shotgun');
-  if (event.code === 'Digit3') trySwitchWeapon('bow');
+  const digit = /^Digit([1-7])$/.exec(event.code);
+  if (digit) trySwitchWeapon(WEAPON_ORDER[Number(digit[1]) - 1]);
+  if (event.code === 'KeyQ') cycleWeapon();
   if (event.code === 'KeyB') startScoping();
   if (event.code === 'Escape' && pointer.free) pauseRound(); // qulflangan rejimda buni brauzer qiladi
 });
@@ -328,8 +329,6 @@ ui.settingsCloseBtn.addEventListener('click', () => { ui.settings.hidden = true;
 /* Do'kon */
 
 const SHOP_ITEMS = [
-  { id: 'shotgun', name: 'Ov miltig‘i', price: 120, note: 'Yaqinda juda kuchli, uzoqqa yetmaydi. 2 tugmasi.' },
-  { id: 'bow', name: 'Kamon', price: 150, note: 'Ovozsiz: atrofdagi hayvonlar cho‘chimaydi. O‘q pastga tushadi. 3 tugmasi.' },
   { id: 'binoculars', name: 'Durbin', price: 60, note: 'B tugmasini bosib turib uzoqni ko‘rish.' },
   { id: 'camo', name: 'Kamuflyaj', price: 100, note: 'Hayvonlar sizni 20% yaqinroqdan sezadi.' },
   { id: 'ammoPouch', name: 'O‘q xaltasi', price: 80, note: 'Har raundda zaxira o‘q 50% ko‘p bo‘ladi.' },
@@ -354,22 +353,70 @@ function buyItem(item) {
   showShop();
 }
 
+/** Qurolni sotib oladi yoki kuchaytiradi. */
+function buyWeaponStep(id) {
+  const owned = id === 'rifle' || owns(id);
+  const price = owned ? upgradeCost(id) : WEAPONS[id].price;
+  if (profile.coins < price) return;
+  profile.coins -= price;
+  if (owned) profile.weaponLevels[id] = (profile.weaponLevels[id] ?? 0) + 1;
+  else profile.owned.push(id);
+  saveProfile();
+  showShop();
+}
+
+function shopRow(title, note, label, disabled, onClick) {
+  const row = document.createElement('li');
+  const name = document.createElement('b');
+  name.textContent = title;
+  const small = document.createElement('small');
+  small.textContent = note;
+  const button = document.createElement('button');
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener('click', onClick);
+  row.append(name, small, button);
+  return row;
+}
+
+function weaponRow(id) {
+  const stats = gunStats(id);
+  const owned = id === 'rifle' || owns(id);
+  const maxed = stats.level >= UPGRADE.maxLevel;
+  const price = owned ? upgradeCost(id) : stats.price;
+  const label = !owned ? `${price} tanga` : maxed ? 'Eng kuchli' : `Kuchaytirish · ${price}`;
+  const title = stats.level ? `${stats.name} +${stats.level}` : stats.name;
+  const numbers = `Zarba ${stats.power.toFixed(1)} · Magazin ${stats.magazine} · O‘qlash ${stats.reloadTime.toFixed(1)} s`;
+  const key = WEAPON_ORDER.indexOf(id) + 1;
+  return shopRow(title, `${stats.note} ${numbers}. ${key} tugmasi.`, label, (owned && maxed) || profile.coins < price, () => buyWeaponStep(id));
+}
+
+function gearRow(item) {
+  const bought = !item.repeatable && owns(item.id);
+  return shopRow(
+    item.repeatable ? `${item.name} · bor: ${item.count()}` : item.name,
+    item.note,
+    bought ? 'Sotib olingan' : `${item.price} tanga`,
+    bought || profile.coins < item.price,
+    () => buyItem(item),
+  );
+}
+
+function shopHeading(text) {
+  const heading = document.createElement('li');
+  heading.className = 'shop-heading';
+  heading.textContent = text;
+  return heading;
+}
+
 function showShop() {
   ui.shopCoins.textContent = `Tanga: ${profile.coins}`;
-  ui.shopList.replaceChildren(...SHOP_ITEMS.map((item) => {
-    const row = document.createElement('li');
-    const name = document.createElement('b');
-    name.textContent = item.repeatable ? `${item.name} · bor: ${item.count()}` : item.name;
-    const note = document.createElement('small');
-    note.textContent = item.note;
-    const button = document.createElement('button');
-    const bought = !item.repeatable && owns(item.id);
-    button.textContent = bought ? 'Sotib olingan' : `${item.price} tanga`;
-    button.disabled = bought || profile.coins < item.price;
-    button.addEventListener('click', () => buyItem(item));
-    row.append(name, note, button);
-    return row;
-  }));
+  ui.shopList.replaceChildren(
+    shopHeading('Qurollar'),
+    ...WEAPON_ORDER.map(weaponRow),
+    shopHeading('Jihozlar'),
+    ...SHOP_ITEMS.map(gearRow),
+  );
 }
 
 /* Raundga olib chiqiladigan jihozlar: o'yinchi o'zi tanlaydi */

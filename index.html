@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>O‘rmondagi ovchi</title>
 
-<link rel="stylesheet" href="css/style.css?v=4">
+<link rel="stylesheet" href="css/style.css?v=5">
 
 <!-- Three.js CDN'dan olinadi. O'yindagi barcha model, tekstura va ovozlar kod bilan yasaladi. -->
 <script type="importmap">
@@ -77,6 +77,7 @@
 <div id="rotateHint">Telefonni yotqizib ushlang</div>
 
 <div id="binoculars" hidden></div>
+<div id="opticScope" hidden></div>
 
 <!-- Xarita: o'yin to'xtamaydi -->
 <div id="mapScreen" hidden>
@@ -101,7 +102,7 @@
       <dt><kbd>R</kbd></dt><dd>Qayta o‘qlash</dd>
       <dt><kbd>Shift</kbd></dt><dd>Yugurish</dd>
       <dt><kbd>C</kbd></dt><dd>Egilish</dd>
-      <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Qurol almashtirish</dd>
+      <dt><kbd>1</kbd>–<kbd>7</kbd> <kbd>Q</kbd></dt><dd>Qurol almashtirish</dd>
       <dt><kbd>B</kbd></dt><dd>Durbin</dd>
       <dt><kbd>H</kbd></dt><dd>Dori ichish</dd>
       <dt><kbd>F</kbd></dt><dd>Bosh chirog‘i</dd>
@@ -306,7 +307,7 @@
   window.THREE = THREE;
   window.mergeGeometries = mergeGeometries;
 
-  const BUILD = 4; // yangi versiya chiqqanda oshiriladi: brauzer eski fayllarni ishlatmasligi uchun
+  const BUILD = 5; // yangi versiya chiqqanda oshiriladi: brauzer eski fayllarni ishlatmasligi uchun
 
   const files = [
     'config.js',

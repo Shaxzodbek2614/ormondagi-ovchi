@@ -92,6 +92,8 @@ const DEFAULT_PROFILE = {
   missions: {}, // missiya id: olingan yulduzlar
   teamMissions: {},
   loadout: {},  // jihoz id: false bo'lsa, raundga olib chiqilmaydi
+  weaponLevels: {}, // qurol id: kuchaytirish darajasi
+  botCount: 2,
   traps: 0,
   xp: 0,
   trophies: { kills: {}, headshots: 0, longestShot: 0 },

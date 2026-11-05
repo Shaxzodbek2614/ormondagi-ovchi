@@ -191,6 +191,8 @@ function releaseInput() {
   input.aiming = input.fire = false;
   input.edgeTurn = input.stickX = input.stickY = 0;
   ui.mapScreen.hidden = true;
+  ui.opticScope.hidden = true;
+  ui.crosshair.hidden = false;
   stopScoping();
   document.body.classList.remove('playing');
   showTouchControls(false);

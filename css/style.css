@@ -255,6 +255,15 @@ body.touch #warning { top: 118px; font-size: 13px; }
   }
 }
 
+/* Mergan miltig'ining optik nishoni */
+#opticScope {
+  position: fixed; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(transparent calc(50% - 1px), rgba(0, 0, 0, .8) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgba(0, 0, 0, .8) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    radial-gradient(circle at center, transparent 40vh, #050505 41vh);
+}
+
 /* Durbindan qaraganda ikki doira ko'rinadi */
 #binoculars {
   position: fixed; inset: 0; pointer-events: none; background: #050505;
@@ -365,7 +374,8 @@ kbd {
 #missionCards button:disabled { color: var(--ink-soft); background: transparent; border: 1px solid var(--line); cursor: default; }
 .card h2 { margin: 0; font: 400 34px var(--title-font); }
 #shopCoins { margin: 6px 0 14px; color: var(--amber); font-weight: 700; }
-#shopList { list-style: none; margin: 0; padding: 0; text-align: left; }
+#shopList { list-style: none; margin: 0; padding: 0 4px 0 0; text-align: left; max-height: 64vh; overflow-y: auto; }
+#shopList li.shop-heading { display: block; padding: 12px 0 6px; border-top: 0; font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); }
 #shopList li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 10px 0; border-top: 1px solid var(--line); }
 #shopList b { font-size: 15px; }
 #shopList small { grid-column: 1; color: var(--ink-soft); font-size: 13px; line-height: 1.35; }

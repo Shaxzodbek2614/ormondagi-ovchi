@@ -146,7 +146,8 @@ function updatePlayer(dt) {
   // Mo'ljalga olish: ko'rish burchagi torayadi
   player.aim = damp(player.aim, aiming ? 1 : 0, 12, dt);
   player.scope = damp(player.scope, input.scoping ? 1 : 0, 12, dt);
-  const fov = lerp(lerp(CONFIG.fov.normal, CONFIG.fov.aiming, player.aim), CONFIG.fov.binoculars, player.scope);
+  const aimFov = weapon.gun.aimFov ?? CONFIG.fov.aiming;
+  const fov = lerp(lerp(CONFIG.fov.normal, aimFov, player.aim), CONFIG.fov.binoculars, player.scope);
   if (Math.abs(fov - camera.fov) > 0.01) {
     camera.fov = fov;
     camera.updateProjectionMatrix();

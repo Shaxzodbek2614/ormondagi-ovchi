@@ -8,27 +8,81 @@ const position3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
 const WEAPONS = {
   rifle: {
-    name: 'Miltiq', magazine: 6, reserve: 24, fireDelay: 0.55, reloadTime: 1.8, range: 220,
-    spread: 0.012, alarmRadius: 40, recoil: 0.035, kick: 1, sound: 'gunshot',
+    name: 'Miltiq', power: 1, magazine: 6, reserve: 24, fireDelay: 0.55, reloadTime: 1.8, range: 220,
+    spread: 0.012, alarmRadius: 40, recoil: 0.035, kick: 1, sound: 'gunshot', upgradeBase: 160,
+    note: 'Ishonchli asosiy qurol.',
     hip: position3(0.27, -0.25, -0.5), aim: position3(0, -0.082, -0.62), muzzle: [0, 0.04, -0.95],
   },
   // Sochma o'q: bir nechta mayda o'q sochiladi, yaqinda hammasi tegib, kuchli zarba beradi
   shotgun: {
-    name: 'Ov miltig‘i', magazine: 2, reserve: 16, fireDelay: 0.4, reloadTime: 1.5, range: 75,
+    name: 'Ov miltig‘i', price: 120, power: 1, magazine: 2, reserve: 16, fireDelay: 0.4, reloadTime: 1.5, range: 75,
     spread: 0.05, aimSpread: 0.028, pellets: 9, alarmRadius: 55, recoil: 0.06, kick: 1.4, sound: 'shotgunBlast',
+    note: 'Yaqinda juda kuchli, uzoqqa yetmaydi.',
     hip: position3(0.27, -0.25, -0.46), aim: position3(0, -0.066, -0.58), muzzle: [0, 0.04, -0.74],
   },
   // Kamon ovoz chiqarmaydi, lekin o'q uchib boradi va uzoqda pastga tushadi
   bow: {
-    name: 'Kamon', magazine: 1, reserve: 20, fireDelay: 0.1, reloadTime: 0.85, range: 140,
+    name: 'Kamon', price: 150, power: 1, magazine: 1, reserve: 20, fireDelay: 0.1, reloadTime: 0.85, range: 140,
     spread: 0.006, alarmRadius: 0, recoil: 0.004, kick: 0.4, sound: 'bowRelease', arrowSpeed: 60,
+    note: 'Ovozsiz: atrofdagi hayvonlar cho‘chimaydi. O‘q pastga tushadi.',
     hip: position3(0.24, -0.1, -0.82), aim: position3(0.035, 0.005, -0.72), muzzle: null,
   },
+  carbine: {
+    name: 'Karabin', price: 300, power: 0.7, magazine: 12, reserve: 48, fireDelay: 0.2, reloadTime: 2.1, range: 180,
+    spread: 0.016, alarmRadius: 42, recoil: 0.02, kick: 0.55, sound: 'gunshot',
+    note: 'Tez otadi va magazini katta, lekin har o‘qi kuchsizroq.',
+    hip: position3(0.27, -0.24, -0.46), aim: position3(0, -0.082, -0.56), muzzle: [0, 0.04, -0.7],
+  },
+  // Mergan miltig'ida optik nishon bor: mo'ljalga olganda ekran nishonga aylanadi
+  sniper: {
+    name: 'Mergan miltig‘i', price: 380, power: 1.6, magazine: 4, reserve: 20, fireDelay: 1.1, reloadTime: 2.4, range: 320,
+    spread: 0.02, alarmRadius: 50, recoil: 0.05, kick: 1.2, sound: 'gunshot', aimFov: 16,
+    note: 'Optik nishon bilan juda uzoqdan uradi, kuchli, lekin sekin.',
+    hip: position3(0.27, -0.25, -0.52), aim: position3(0, -0.11, -0.5), muzzle: [0, 0.04, -1.12],
+  },
+  crossbow: {
+    name: 'Arbalet', price: 340, power: 1.5, magazine: 1, reserve: 20, fireDelay: 0.1, reloadTime: 1.3, range: 190,
+    spread: 0.004, alarmRadius: 0, recoil: 0.008, kick: 0.6, sound: 'bowRelease', arrowSpeed: 95,
+    note: 'Ovozsiz, kamondan kuchli va o‘qi tezroq, sekinroq o‘qlanadi.',
+    hip: position3(0.25, -0.24, -0.5), aim: position3(0, -0.08, -0.56), muzzle: null,
+  },
+  magnum: {
+    name: 'Katta kalibr', price: 520, power: 2.6, magazine: 3, reserve: 15, fireDelay: 0.9, reloadTime: 2.5, range: 200,
+    spread: 0.014, alarmRadius: 70, recoil: 0.09, kick: 1.8, sound: 'shotgunBlast',
+    note: 'Ayiq uchun: juda kuchli, tepkisi katta, ovozi uzoqqa ketadi.',
+    hip: position3(0.27, -0.25, -0.5), aim: position3(0, -0.082, -0.62), muzzle: [0, 0.04, -0.98],
+  },
+};
+
+const WEAPON_ORDER = Object.keys(WEAPONS); // 1-7 tugmalari shu tartibda
+
+// Har kuchaytirish darajasi nima beradi
+const UPGRADE = { maxLevel: 3, power: 0.34, reload: 0.12, spread: 0.2, reserve: 0.25 };
+
+/** Qurolning hozirgi ko'rsatkichlari: jadvaldagi qiymat va kuchaytirish darajasi. */
+function gunStats(id) {
+  const base = WEAPONS[id];
+  const level = profile.weaponLevels[id] ?? 0;
+  return {
+    ...base,
+    level,
+    power: base.power * (1 + level * UPGRADE.power),
+    reloadTime: base.reloadTime * (1 - level * UPGRADE.reload),
+    spread: base.spread * (1 - level * UPGRADE.spread),
+    aimSpread: (base.aimSpread ?? 0) * (1 - level * UPGRADE.spread),
+    reserve: Math.round(base.reserve * (1 + level * UPGRADE.reserve)),
+  };
+}
+
+const upgradeCost = (id) => {
+  const base = WEAPONS[id].price ?? WEAPONS[id].upgradeBase;
+  return Math.round((base * 0.5 * ((profile.weaponLevels[id] ?? 0) + 1)) / 10) * 10;
 };
 
 const weapon = {
   current: 'rifle',
   slots: {},       // har bir qurolning o'z o'qi: { ammo, reserve }
+  stats: {},       // raund boshida hisoblangan ko'rsatkichlar
   cooldown: 0,
   reloadLeft: 0,
   kick: 0,
@@ -36,7 +90,7 @@ const weapon = {
   swayX: 0,
   swayY: 0,
   swapLift: 0,     // qurol almashganda pastdan ko'tariladi
-  get gun() { return WEAPONS[this.current]; },
+  get gun() { return this.stats[this.current]; },
   get ammo() { return this.slots[this.current].ammo; },
   set ammo(value) { this.slots[this.current].ammo = value; },
   get reserve() { return this.slots[this.current].reserve; },
@@ -84,6 +138,51 @@ function shotgunGeometry() {
   );
 }
 
+/** Karabin, mergan miltig'i va katta kalibr uchun umumiy tuzilish. */
+function longGunGeometry({ wood, woodDark, metal = '#2b2d31', steel = '#44474d', barrelLength, barrelRadius = 0.018, scope = false, clip = false }) {
+  const sleeve = '#4b5a38', glove = '#3a2b20';
+  const barrelCenter = -0.18 - barrelLength / 2;
+  return merge(
+    box(0.06, 0.1, 0.34, wood, [0, -0.045, 0.3]),
+    box(0.065, 0.15, 0.1, woodDark, [0, -0.07, 0.5]),
+    box(0.058, 0.07, 0.36, wood, [0, -0.01, -0.18]),
+    box(0.062, 0.08, 0.32, metal, [0, 0.015, 0.02]),
+    cylinder(barrelRadius * 0.85, barrelRadius, barrelLength, metal, [0, 0.038, barrelCenter], [Math.PI / 2, 0, 0], 8),
+    box(0.012, 0.03, 0.02, steel, [0, 0.066, barrelCenter - barrelLength / 2 + 0.04]),
+    box(0.012, 0.04, 0.05, steel, [0, -0.06, 0.06]),
+    scope ? [
+      cylinder(0.03, 0.03, 0.34, '#1a1b1e', [0, 0.1, 0], [Math.PI / 2, 0, 0], 10),
+      cylinder(0.04, 0.03, 0.06, '#1a1b1e', [0, 0.1, -0.19], [Math.PI / 2, 0, 0], 10),
+      box(0.02, 0.05, 0.03, steel, [0, 0.06, 0.08]),
+      box(0.02, 0.05, 0.03, steel, [0, 0.06, -0.08]),
+    ] : [],
+    clip ? [box(0.04, 0.17, 0.08, metal, [0, -0.1, -0.04], [0.2, 0, 0])] : [],
+    box(0.09, 0.05, 0.12, glove, [0, -0.05, -0.2]),
+    cylinder(0.05, 0.06, 0.6, sleeve, [-0.14, -0.26, -0.03], [-0.85, 0, 0.5]),
+    box(0.08, 0.08, 0.09, glove, [0.015, -0.08, 0.16]),
+    cylinder(0.05, 0.06, 0.5, sleeve, [0.09, -0.28, 0.32], [-0.5, 0, -0.3]),
+  );
+}
+
+/** Arbalet: yotiq kamon va qo'ndoq. */
+function crossbowGeometry() {
+  const wood = '#5e3b22', metal = '#33353a', cord = '#e6dfca', sleeve = '#4b5a38', glove = '#3a2b20';
+  return merge(
+    box(0.06, 0.09, 0.62, wood, [0, -0.02, 0.06]),
+    box(0.065, 0.14, 0.1, wood, [0, -0.06, 0.4]),
+    box(0.05, 0.03, 0.42, metal, [0, 0.03, -0.2]),
+    box(0.62, 0.03, 0.05, metal, [0, 0.03, -0.38]),
+    box(0.2, 0.025, 0.04, metal, [0.34, 0.03, -0.33], [0, 0.5, 0]),
+    box(0.2, 0.025, 0.04, metal, [-0.34, 0.03, -0.33], [0, -0.5, 0]),
+    cylinder(0.003, 0.003, 0.6, cord, [0.2, 0.03, -0.14], [Math.PI / 2, 0.75, 0], 4),
+    cylinder(0.003, 0.003, 0.6, cord, [-0.2, 0.03, -0.14], [Math.PI / 2, -0.75, 0], 4),
+    box(0.09, 0.05, 0.12, glove, [0, -0.05, -0.16]),
+    cylinder(0.05, 0.06, 0.6, sleeve, [-0.14, -0.26, -0.01], [-0.85, 0, 0.5]),
+    box(0.08, 0.08, 0.09, glove, [0.015, -0.08, 0.22]),
+    cylinder(0.05, 0.06, 0.5, sleeve, [0.09, -0.28, 0.36], [-0.5, 0, -0.3]),
+  );
+}
+
 /** Kamon: egilgan yelkalar, tortilgan ip va uni ushlab turgan qo'l. */
 function bowGeometry() {
   const wood = '#6d4426', grip = '#2d2019', cord = '#e6dfca', sleeve = '#4b5a38', glove = '#3a2b20';
@@ -117,7 +216,16 @@ viewModel.visible = false;
 weaponScene.add(viewModel);
 
 const weaponMeshes = {};
-for (const [id, geometry] of Object.entries({ rifle: rifleGeometry(), shotgun: shotgunGeometry(), bow: bowGeometry() })) {
+const weaponShapes = {
+  rifle: rifleGeometry(),
+  shotgun: shotgunGeometry(),
+  bow: bowGeometry(),
+  carbine: longGunGeometry({ wood: '#4a4f45', woodDark: '#35392f', barrelLength: 0.48, clip: true }),
+  sniper: longGunGeometry({ wood: '#5b3b24', woodDark: '#3f2816', barrelLength: 0.92, barrelRadius: 0.02, scope: true }),
+  crossbow: crossbowGeometry(),
+  magnum: longGunGeometry({ wood: '#7a4f2c', woodDark: '#573518', barrelLength: 0.76, barrelRadius: 0.028 }),
+};
+for (const [id, geometry] of Object.entries(weaponShapes)) {
   weaponMeshes[id] = new THREE.Mesh(geometry, gearMaterial);
   weaponMeshes[id].visible = false;
   viewModel.add(weaponMeshes[id]);
@@ -159,7 +267,8 @@ scene.add(muzzleLight);
 /** Raund boshida har bir qurol o'qlar bilan to'ldiriladi. */
 function stockWeapons() {
   const pouch = isEquipped('ammoPouch') ? 1.5 : 1;
-  weapon.slots = Object.fromEntries(Object.entries(WEAPONS).map(([id, gun]) => (
+  weapon.stats = Object.fromEntries(WEAPON_ORDER.map((id) => [id, gunStats(id)]));
+  weapon.slots = Object.fromEntries(Object.entries(weapon.stats).map(([id, gun]) => (
     [id, { ammo: gun.magazine, reserve: Math.round(gun.reserve * pouch) }]
   )));
   const custom = game.mode === 'mission' ? game.activeMission.ammo : null;
@@ -316,7 +425,7 @@ function fire() {
   const spread = lerp(gun.spread * moveFactor, gun.aimSpread ?? 0, player.aim);
 
   if (gun.arrowSpeed) {
-    launchArrow(origin, scatterDirection(direction, spread), gun.arrowSpeed);
+    launchArrow(origin, scatterDirection(direction, spread), gun);
     return;
   }
 
@@ -328,7 +437,7 @@ function fire() {
   if (struck.size) game.hits++;
   // Sochma o'qda har uchta tekkan mayda o'q bir zarbaga teng
   for (const [animal, { count, part, point }] of struck) {
-    registerHit(animal, part, Math.max(1, Math.round(count / 3)), point);
+    registerHit(animal, part, Math.max(1, Math.round(count / 3)) * gun.power, point);
   }
 
   // O'q ovozi atrofdagi hayvonlarni cho'chitadi. Guldurak paytida ovoz bosilib ketadi.
@@ -347,10 +456,11 @@ const arrows = Array.from({ length: 8 }, () => {
   return { mesh, velocity: new THREE.Vector3(), flying: false, stuckFor: 0 };
 });
 
-function launchArrow(origin, direction, speed) {
+function launchArrow(origin, direction, gun) {
   const arrow = arrows.find((candidate) => !candidate.flying && !candidate.mesh.visible) ?? arrows[0];
   arrow.mesh.position.copy(origin).addScaledVector(direction, 0.5);
-  arrow.velocity.copy(direction).multiplyScalar(speed);
+  arrow.velocity.copy(direction).multiplyScalar(gun.arrowSpeed);
+  arrow.power = gun.power;
   arrow.flying = true;
   arrow.mesh.visible = true;
 }
@@ -386,7 +496,7 @@ function updateArrows(dt) {
     if (hit) {
       const { animal, part } = hit.object.userData;
       game.hits++;
-      registerHit(animal, part, 1, hit.point);
+      registerHit(animal, part, arrow.power, hit.point);
       stopArrow(arrow, 0);
       continue;
     }
@@ -464,6 +574,12 @@ function updateWeapon(dt) {
   viewModel.rotation.set(weapon.kick * 0.09 + reloadLift * 0.7, relaxed * 0.05, reloadLift * 0.5);
   if (weapon.current === 'bow') viewModel.rotation.z += relaxed * -0.32;
   nockedArrow.visible = weapon.ammo > 0;
+
+  // Optik nishon: mo'ljalga olganda qurol o'rniga nishon doirasi ko'rinadi
+  const scoped = Boolean(gun.aimFov) && player.aim > 0.85 && viewModel.visible;
+  ui.opticScope.hidden = !scoped;
+  ui.crosshair.hidden = scoped;
+  if (scoped) viewModel.visible = false;
 
   weapon.flashLeft -= dt;
   const flashing = weapon.flashLeft > 0;

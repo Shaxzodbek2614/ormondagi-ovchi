@@ -30,6 +30,7 @@ const ui = {
   warning: byId('warning'),
   vignette: byId('vignette'),
   hitArc: byId('hitArc'),
+  opticScope: byId('opticScope'),
   compass: byId('compass'),
   mapScreen: byId('mapScreen'),
   mapCanvas: byId('mapCanvas'),
@@ -128,8 +129,8 @@ function updateScoreHud() {
 }
 
 function updateAmmoHud() {
-  const { magazine, name } = weapon.gun;
-  ui.weaponName.textContent = name;
+  const { magazine, name, level } = weapon.gun;
+  ui.weaponName.textContent = level ? `${name} +${level}` : name;
   ui.ammo.textContent = `${weapon.ammo} / ${weapon.reserve}`;
   if (ui.ammoPips.children.length !== magazine) {
     ui.ammoPips.replaceChildren(...Array.from({ length: magazine }, () => document.createElement('i')));

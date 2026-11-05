@@ -228,7 +228,7 @@ const HOST_MESSAGES = {
     const animal = animals[id];
     if (!animal?.alive || !animal.spawned) return;
     const safePart = part === 'head' ? 'head' : 'body';
-    applyHit(animal, safePart, clamp(Number(power) || 1, 1, 3), member);
+    applyHit(animal, safePart, clamp(Number(power) || 1, 0.1, 40), member);
   },
 
   shot(member, { radius }) {
