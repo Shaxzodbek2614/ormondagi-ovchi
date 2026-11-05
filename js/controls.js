@@ -185,6 +185,11 @@ window.addEventListener('blur', () => {
 ui.startBtn.addEventListener('click', showSetup);
 ui.againBtn.addEventListener('click', restartRound);
 ui.missionsBtn.addEventListener('click', showMissions);
+ui.briefBackBtn.addEventListener('click', () => {
+  ui.brief.hidden = true;
+  applySetup(profile.setup);
+  showMissions();
+});
 ui.missionsBackBtn.addEventListener('click', () => {
   ui.missions.hidden = true;
   if (network.active) showLobby();

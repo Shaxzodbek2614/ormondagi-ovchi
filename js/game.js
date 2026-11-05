@@ -10,7 +10,7 @@
 const pointer = { lockWorked: false, free: IS_TOUCH_DEVICE };
 
 // Har bir tur uchun topshiriqda nechta ovlash kerakligi
-const MISSION_GOALS = { rabbit: 3, deer: 2, fox: 1, boar: 2, duck: 1, wolf: 2, bear: 1, fish: 1 };
+const MISSION_GOALS = { rabbit: 3, deer: 2, fox: 1, boar: 2, duck: 1, goose: 2, wolf: 2, bear: 1, fish: 1 };
 
 /** Raund uchun tasodifiy uchta topshiriq. */
 function createMissions() {
@@ -328,7 +328,7 @@ function endRound(reason, won = false) {
     return row;
   }));
   ui.nextMissionBtn.hidden = !(won && nextMission);
-  ui.nextMissionBtn.onclick = nextMission ? () => startMission(nextMission) : null;
+  ui.nextMissionBtn.onclick = nextMission ? () => openMission(nextMission) : null;
   ui.againBtn.textContent = game.mode === 'team' ? 'Xonaga qaytish' : 'Qayta o‘ynash';
   ui.result.hidden = false;
 }

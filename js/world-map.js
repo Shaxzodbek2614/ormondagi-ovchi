@@ -44,18 +44,32 @@ function planLakes(riverPoints) {
   });
   const lakes = [{ ...pick(onRiver), radius: randRange(30, 40), seed: Math.random() * 50 }];
 
-  for (let attempt = 0; attempt < 300 && lakes.length < 4; attempt++) {
+  const gap = LAKE_COUNT > 6 ? 22 : 45; // ko'llar o'lkasida ular bir-biriga yaqinroq
+  for (let attempt = 0; attempt < 2000 && lakes.length < LAKE_COUNT; attempt++) {
     const point = randomPoint(CONFIG.worldRadius - 40);
     const radius = randRange(20, 36);
     const nearSpawn = Math.hypot(point.x, point.z) < radius + 50;
-    const nearLake = lakes.some((lake) => Math.hypot(lake.x - point.x, lake.z - point.z) < lake.radius + radius + 45);
+    const nearLake = lakes.some((lake) => Math.hypot(lake.x - point.x, lake.z - point.z) < lake.radius + radius + gap);
     if (!nearSpawn && !nearLake) lakes.push({ ...point, radius, seed: Math.random() * 50 });
   }
   return lakes;
 }
 
+/** Daryodan o'tish joylari: bu nuqtalarda daryo albatta sayoz bo'ladi. Xaritada ham ko'rsatiladi. */
+function planFords(points, lakeList) {
+  const fords = [];
+  for (const point of points) {
+    const inside = Math.hypot(point.x, point.z) < CONFIG.worldRadius - 14;
+    const clearOfLakes = lakeList.every((lake) => Math.hypot(lake.x - point.x, lake.z - point.z) > lake.radius * 1.3 + 12);
+    const spaced = fords.every((ford) => Math.hypot(ford.x - point.x, ford.z - point.z) > 70);
+    if (inside && clearOfLakes && spaced) fords.push({ x: point.x, z: point.z });
+  }
+  return fords;
+}
+
 const riverPoints = planRiver();
 const lakes = planLakes(riverPoints);
+const fords = planFords(riverPoints, lakes);
 
 /** Nuqtadan daryo o'rta chizig'igacha bo'lgan masofa. */
 function distanceToRiver(x, z) {
@@ -101,7 +115,9 @@ function computeHeight(x, z) {
   if (shore >= 0) return lerp(WATER_LEVEL + 0.12, land, inland) + rim * smoothstep(shore, 0, SHORE_WIDTH * 2);
 
   // Daryoning sayoz kechuv joylari va chuqur joylari almashib keladi, ko'llar esa chuqurroq
-  const riverDepth = 0.6 + valueNoise(x * 0.015 + 300, z * 0.015 + 300) * 1.6;
+  const naturalDepth = 0.6 + valueNoise(x * 0.015 + 300, z * 0.015 + 300) * 1.6;
+  const fordDistance = Math.min(...fords.map((ford) => Math.hypot(ford.x - x, ford.z - z)));
+  const riverDepth = lerp(0.6, naturalDepth, smoothstep(fordDistance, 8, 20));
   const depthLimit = lerp(3.4, riverDepth, smoothstep(lakeEdge - riverEdge, -6, 6));
   return WATER_LEVEL + 0.12 - Math.min(-shore * 0.28, depthLimit);
 }

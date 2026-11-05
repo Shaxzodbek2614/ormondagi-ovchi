@@ -27,6 +27,22 @@ function seededRandom(seed) {
   };
 }
 
+// Missiya ko'proq ko'l so'rasa, sahifa qayta yuklanadi va dunyo shu talab bilan quriladi
+const PENDING_MISSION_KEY = 'ormondagi-ovchi-keyingi-missiya';
+
+function takePendingMission() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(PENDING_MISSION_KEY));
+    sessionStorage.removeItem(PENDING_MISSION_KEY);
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+const pendingMission = takePendingMission();
+const LAKE_COUNT = pendingMission?.lakes ?? 5;
+
 const nativeRandom = Math.random;
 Math.random = seededRandom(roomCode ? hashText(roomCode) : Math.floor(nativeRandom() * 2 ** 32));
 

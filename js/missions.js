@@ -113,6 +113,7 @@ const MISSIONS = [
     title: 'O‘rdak mavsumi',
     brief: 'Beshta o‘rdakni havoda uring. Suzib yurganini otish hisobga o‘tmaydi.',
     setup: { time: 'day', weather: 'cloudy', season: 'autumn', wind: 'breeze', difficulty: 'normal', duration: '300' },
+    world: { lakes: 11 },
     weapons: ['shotgun', 'rifle'],
     goals: [{ kind: 'duck', airborne: true, goal: 5, text: 'Havodagi o‘rdak' }],
     reward: 70,
@@ -123,6 +124,25 @@ const MISSIONS = [
       for (const duck of animals.filter((animal) => animal.kind === 'duck')) {
         const { x, z } = randomLakePoint(lake);
         duck.pos.set(x, WATER_LEVEL, z);
+      }
+    },
+  },
+  {
+    id: 'goose-flight',
+    title: 'G‘oz ovi',
+    brief: 'Ko‘llar o‘lkasida g‘ozlar gala bo‘lib yuradi. Bittasi cho‘chisa, hammasi birga uchadi. Oltita g‘ozni havoda uring.',
+    setup: { time: 'dawn', weather: 'clear', season: 'autumn', wind: 'calm', difficulty: 'normal', duration: '300' },
+    world: { lakes: 11 },
+    weapons: ['shotgun', 'rifle'],
+    goals: [{ kind: 'goose', airborne: true, goal: 6, text: 'Havodagi g‘oz' }],
+    reward: 90,
+    fastLeft: 120,
+    tips: ['Gala V shaklida uchadi. Ov miltig‘i bilan bir o‘qda ikkitasini urish mumkin.'],
+    prepare() {
+      const lake = startAtLake();
+      for (const goose of animals.filter((animal) => animal.kind === 'goose')) {
+        const { x, z } = randomLakePoint(lake);
+        goose.pos.set(x, WATER_LEVEL, z);
       }
     },
   },
@@ -202,12 +222,37 @@ const MISSIONS = [
   },
 ];
 
-/** Missiya ochiqmi: birinchisi doim ochiq, qolganlari oldingisi bajarilgach ochiladi. */
+/** Missiya ochiqmi: nechta missiya bajarilgan bo'lsa, ro'yxatda shuncha pog'ona ochiq. */
 function isMissionUnlocked(index) {
-  return index === 0 || (profile.missions[MISSIONS[index - 1].id] ?? 0) > 0;
+  const completed = Object.values(profile.missions).filter((stars) => stars > 0).length;
+  return index <= completed;
 }
 
 const starText = (stars) => '★'.repeat(stars) + '☆'.repeat(3 - stars);
+
+/** Missiyani tanlaydi. Dunyoda ko'l yetmasa, sahifa shu talab bilan qayta yuklanadi. */
+function openMission(mission) {
+  if (lakes.length < (mission.world?.lakes ?? 0)) {
+    try {
+      sessionStorage.setItem(PENDING_MISSION_KEY, JSON.stringify({ id: mission.id, lakes: mission.world.lakes }));
+      location.reload();
+      return;
+    } catch {
+      // Saqlab bo'lmasa, oddiy dunyoda o'ynaladi
+    }
+  }
+  showMissionBrief(mission);
+}
+
+function showMissionBrief(mission) {
+  applySetup(mission.setup);
+  ui.briefTitle.textContent = mission.title;
+  ui.briefText.textContent = mission.brief;
+  ui.briefConditions.textContent = conditions.name;
+  ui.briefStartBtn.onclick = () => startMission(mission);
+  ui.menu.hidden = ui.missions.hidden = ui.result.hidden = true;
+  ui.brief.hidden = false;
+}
 
 function startMission(mission) {
   if (IS_TOUCH_DEVICE) document.documentElement.requestFullscreen?.().catch(() => {});
@@ -220,7 +265,7 @@ function startMission(mission) {
   player.pos.y = terrainHeight(player.pos.x, player.pos.z) + CONFIG.player.eyeHeight;
   game.tipIndex = 0;
   game.tipClock = 1.5;
-  ui.missions.hidden = true;
+  ui.missions.hidden = ui.brief.hidden = true;
   game.state = 'paused'; // sichqoncha qulflangach "playing" ga o'tadi
   requestLock();
 }
@@ -287,7 +332,7 @@ function showMissions() {
     const button = document.createElement('button');
     button.textContent = unlocked ? 'Boshlash' : 'Yopiq';
     button.disabled = !unlocked;
-    button.addEventListener('click', () => startMission(mission));
+    button.addEventListener('click', () => openMission(mission));
 
     row.append(title, brief, button);
     return row;

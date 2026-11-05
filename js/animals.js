@@ -45,6 +45,11 @@ const SPECIES = {
     walkSpeed: 0.9, runSpeed: 14, turnRate: 3, radius: 0.3,
     senseRange: 20, lieHeight: 0.08,
   },
+  goose: {
+    name: 'G‘oz', points: 45, hp: 1, headDamage: 1, count: 12, groupSize: [4, 6], warmOnly: true, model: gooseModel(), scale: 1.4,
+    walkSpeed: 0.8, runSpeed: 13, turnRate: 3, radius: 0.4,
+    senseRange: 25, lieHeight: 0.1,
+  },
   fish: {
     name: 'Baliq', points: 20, hp: 1, headDamage: 1, count: 5, warmOnly: true, model: fishModel(), scale: 1.5,
     walkSpeed: 1, runSpeed: 1, turnRate: 1, radius: 0.2, senseRange: 0, lieHeight: 0.02,
@@ -656,6 +661,11 @@ class Animal {
   }
 }
 
+function nearestLake(x, z) {
+  return lakes.reduce((best, lake) => (
+    Math.hypot(lake.x - x, lake.z - z) < Math.hypot(best.x - x, best.z - z) ? lake : best));
+}
+
 /** Ko'l ichidagi yetarlicha chuqur tasodifiy nuqta. */
 function randomLakePoint(lake = pick(lakes)) {
   for (let attempt = 0; attempt < 30; attempt++) {
@@ -666,8 +676,8 @@ function randomLakePoint(lake = pick(lakes)) {
   return { x: lake.x, z: lake.z };
 }
 
-/** O'rdak ko'lda suzadi, cho'chisa boshqa ko'lga uchib ketadi. Uchayotganda ham otish mumkin. */
-class Duck extends Animal {
+/** O'rdak va g'oz ko'lda suzadi, cho'chisa boshqa ko'lga uchib ketadi. Uchayotganda ham otish mumkin. */
+class Waterfowl extends Animal {
   constructor(kind) {
     super(kind);
     const { wings } = this.spec.model;
@@ -680,8 +690,11 @@ class Duck extends Animal {
     });
   }
 
+  /** Gala a'zolari yo'lboshchisi bilan bir ko'lda chiqadi. */
   findSpawnPoint() {
-    return randomLakePoint();
+    const leader = this.group && groupLeader(this.group);
+    if (!leader || leader === this) return randomLakePoint();
+    return randomLakePoint(nearestLake(leader.pos.x, leader.pos.z));
   }
 
   groundLevel(x, z) {
@@ -694,16 +707,32 @@ class Duck extends Animal {
     this.setState('swim', randRange(2, 6));
   }
 
+  /** Bittasi cho'chisa, butun gala birga uchadi. */
   startle() {
     if (this.state !== 'swim') return;
+    const flock = this.group
+      ? this.group.members.filter((bird) => bird.alive && bird.spawned && bird.state === 'swim')
+      : [this];
     const target = randomLakePoint();
     const distance = Math.hypot(target.x - this.pos.x, target.z - this.pos.z);
+    const duration = Math.max(5, distance / this.spec.runSpeed);
+    const height = randRange(15, 24);
+    flock.forEach((bird, index) => bird.takeOff(target, duration, height, flock[0], index));
+    sound.quack(this.pos);
+  }
+
+  /** Gala havoda V shaklida tizilib uchadi: har qush yo'lboshchidan chap yoki o'ngda, orqaroqda. */
+  takeOff(target, duration, height, leader, index) {
+    const rank = Math.ceil(index / 2), side = index % 2 ? 1 : -1;
     this.flight = {
-      fromX: this.pos.x, fromZ: this.pos.z, toX: target.x, toZ: target.z,
-      progress: 0, duration: Math.max(5, distance / this.spec.runSpeed), height: randRange(15, 24),
+      fromX: this.pos.x, fromZ: this.pos.z,
+      toX: target.x + side * rank * 2, toZ: target.z + rank * 2,
+      progress: 0, duration, height,
+      leader: index > 0 ? leader : null,
+      slotSide: side * rank * 3,
+      slotBack: rank * 3.4,
     };
     this.setState('fly');
-    sound.quack(this.pos);
   }
 
   think(dt) {
@@ -726,7 +755,15 @@ class Duck extends Animal {
       const { flight } = this;
       flight.progress = Math.min(1, flight.progress + dt / flight.duration);
       const t = flight.progress;
-      const x = lerp(flight.fromX, flight.toX, t), z = lerp(flight.fromZ, flight.toZ, t);
+      let x = lerp(flight.fromX, flight.toX, t), z = lerp(flight.fromZ, flight.toZ, t);
+      const { leader } = flight;
+      if (leader?.alive && leader.state === 'fly') {
+        // Tizilish parvoz o'rtasida to'liq bo'ladi, ko'tarilish va qo'nishda tarqaladi
+        const blend = Math.min(1, t * 5, (1 - t) * 5);
+        const sin = Math.sin(leader.heading), cos = Math.cos(leader.heading);
+        x = lerp(x, leader.pos.x + cos * flight.slotSide - sin * flight.slotBack, blend);
+        z = lerp(z, leader.pos.z - sin * flight.slotSide - cos * flight.slotBack, blend);
+      }
       this.heading = Math.atan2(x - pos.x, z - pos.z) || this.heading;
       pos.set(x, WATER_LEVEL + Math.pow(Math.sin(t * Math.PI), 0.55) * flight.height, z);
       root.rotation.set(t < 0.5 ? -0.3 : 0.05, this.heading, 0);
@@ -785,9 +822,7 @@ class Fish extends Animal {
 
   leap() {
     const watcher = pick(hunters);
-    const lake = lakes.reduce((best, candidate) => (
-      Math.hypot(candidate.x - watcher.pos.x, candidate.z - watcher.pos.z)
-        < Math.hypot(best.x - watcher.pos.x, best.z - watcher.pos.z) ? candidate : best));
+    const lake = nearestLake(watcher.pos.x, watcher.pos.z);
     const { x, z } = randomLakePoint(lake);
     this.pos.set(x, WATER_LEVEL, z);
     this.heading = Math.random() * TAU;
@@ -824,7 +859,7 @@ class Fish extends Animal {
   }
 }
 
-const ANIMAL_CLASSES = { duck: Duck, fish: Fish };
+const ANIMAL_CLASSES = { duck: Waterfowl, goose: Waterfowl, fish: Fish };
 
 /** Guruhning hozirgi yo'lboshchisi: tirik a'zolardan birinchisi. */
 function groupLeader(group) {

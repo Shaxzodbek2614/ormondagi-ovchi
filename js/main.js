@@ -100,3 +100,7 @@ window.ovchiReady = true;
 ui.startBtn.disabled = false;
 ui.startBtn.textContent = 'Erkin ov';
 bootRoom();
+
+// Ko'p ko'lli dunyo uchun sahifa qayta yuklangan bo'lsa, missiya tavsifi darrov ochiladi
+const waitingMission = MISSIONS.find((mission) => mission.id === pendingMission?.id);
+if (waitingMission) showMissionBrief(waitingMission);

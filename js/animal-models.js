@@ -375,26 +375,24 @@ function bearModel() {
   };
 }
 
-function duckModel() {
-  const back = '#7c6b58', belly = '#d3c8b6', green = '#1e5c3c', wing = '#6a5a49';
+/** O'rdak va g'oz bir xil tuzilgan: ranglari va bo'yin uzunligi farq qiladi. */
+function waterfowlModel({ back, belly, wing, neckColor, headColor, bill, collar, cheek, neckRings, headPivot }) {
   return {
     body: merge(
       loft([
         [0.18, -0.24, 0.02, 0.015], [0.19, -0.2, 0.07, 0.05], [0.16, -0.08, 0.125, 0.1],
         [0.15, 0.06, 0.13, 0.105], [0.17, 0.16, 0.09, 0.085], [0.2, 0.22, 0.03, 0.03],
       ], { top: back, bottom: belly, sides: 10, mottle: 0.03 }),
-      blob(0.06, '#f4efe4', [0, 0.235, 0.17], [1, 0.4, 1]),
+      collar ? [blob(0.06, collar, [0, 0.235, 0.17], [1, 0.4, 1])] : [],
     ),
-    neck: {
-      pivot: [0, 0.22, 0.18],
-      geometry: limb([[-0.02, -0.02, 0.05, 0.055], [0.08, 0.03, 0.04, 0.04], [0.16, 0.04, 0.04, 0.04]], { top: green, mottle: 0.02 }),
-    },
+    neck: { pivot: [0, 0.22, 0.18], geometry: limb(neckRings, { top: neckColor, mottle: 0.02 }) },
     head: {
-      pivot: [0, 0.18, 0.05],
+      pivot: headPivot,
       geometry: merge(
-        loft([[0, -0.05, 0.03, 0.03], [0.01, -0.02, 0.055, 0.055], [0.01, 0.04, 0.055, 0.05], [-0.01, 0.08, 0.03, 0.025]], { top: green, sides: 10, steps: 3, mottle: 0.02 }),
-        blob(0.03, '#d9a520', [0, -0.012, 0.11], [1, 0.42, 1.5]),
+        loft([[0, -0.05, 0.03, 0.03], [0.01, -0.02, 0.055, 0.055], [0.01, 0.04, 0.055, 0.05], [-0.01, 0.08, 0.03, 0.025]], { top: headColor, sides: 10, steps: 3, mottle: 0.02 }),
+        blob(0.03, bill, [0, -0.012, 0.11], [1, 0.42, 1.5]),
         eyes(0.046, 0.025, 0.02, 0.011),
+        cheek ? [blob(0.03, cheek, [0.045, -0.005, -0.005], [0.4, 1, 1]), blob(0.03, cheek, [-0.045, -0.005, -0.005], [0.4, 1, 1])] : [],
       ),
     },
     tail: { pivot: [0, 0.2, -0.22], rest: -0.5, geometry: painted(new THREE.ConeGeometry(0.05, 0.12, 6), '#e6e0d2', [0, 0, -0.04], [-Math.PI / 2, 0, 0], [1, 0.8, 0.5]) },
@@ -403,6 +401,22 @@ function duckModel() {
     hitBody: { size: [0.62, 0.62, 0.86], center: [0, 0.24, 0] },
     hitHead: { size: [0.2, 0.26, 0.3], center: [0, 0, 0.04] },
   };
+}
+
+function duckModel() {
+  return waterfowlModel({
+    back: '#7c6b58', belly: '#d3c8b6', wing: '#6a5a49', neckColor: '#1e5c3c', headColor: '#1e5c3c', bill: '#d9a520', collar: '#f4efe4',
+    neckRings: [[-0.02, -0.02, 0.05, 0.055], [0.08, 0.03, 0.04, 0.04], [0.16, 0.04, 0.04, 0.04]],
+    headPivot: [0, 0.18, 0.05],
+  });
+}
+
+function gooseModel() {
+  return waterfowlModel({
+    back: '#857d70', belly: '#dcd6c9', wing: '#6b655a', neckColor: '#1f1e1c', headColor: '#1f1e1c', bill: '#262421', cheek: '#f1ece0',
+    neckRings: [[-0.02, -0.02, 0.05, 0.055], [0.12, 0.03, 0.036, 0.04], [0.26, 0.05, 0.032, 0.034], [0.36, 0.06, 0.032, 0.034]],
+    headPivot: [0, 0.38, 0.07],
+  });
 }
 
 function fishModel() {
