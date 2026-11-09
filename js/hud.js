@@ -192,7 +192,7 @@ function updateFieldHud(hidden) {
   const windAngle = angleFromView(player.pos.x + Math.sin(wind.angle), player.pos.z + Math.cos(wind.angle));
   ui.windArrow.style.transform = `rotate(${windAngle}rad)`;
   ui.noiseFill.style.transform = `scaleX(${clamp(player.noise / 1.5, 0.03, 1)})`;
-  const stance = [player.crouching && 'Egilgan', hidden && 'Butada', player.onTower && 'Minorada', player.lampOn && 'Chiroq']
+  const stance = [player.crouching && 'Egilgan', hidden && 'Butada', player.onTower && 'Minorada', player.inBoat && 'Qayiqda', player.lampOn && 'Chiroq']
     .filter(Boolean).join(' · ');
   if (ui.stanceLine.textContent !== stance) ui.stanceLine.textContent = stance;
 }

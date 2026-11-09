@@ -76,7 +76,51 @@ const SPECIES = {
     senseRange: 15, alertTime: [0.6, 0.9], stride: 1.7, grazeAngle: 0.8, lieHeight: 0.62,
     aggressive: true, rears: true, damage: 35, biteRange: 2.6, giveUpRange: 70, recoverTime: 1.8,
   },
+  // Tog' echkisi: faqat tog'da, uzoqdan sezadi va tepaga qochadi
+  ibex: {
+    track: { type: 'hoof', size: 0.8, step: 1.2, width: 0.13 },
+    name: 'Tog‘ echkisi', points: 60, hp: 2, headDamage: 2, count: 9, groupSize: [2, 4], wadeDepth: 0.3, voice: 'bleat',
+    habitat: 'mountain', climbs: true, scale: 0.82,
+    model: deerModel({ back: '#8b7b63', belly: '#d9cfba', dark: '#4f4335', horns: true }),
+    walkSpeed: 1.8, runSpeed: 9.5, turnRate: 3.8, radius: 0.55,
+    senseRange: 42, alertTime: [0.3, 0.7], stride: 1.6, grazeAngle: 2.05, lieHeight: 0.26,
+  },
+  // Qirg'ovul: o'tloqda yuradi, yaqinlashsangiz pir etib uchadi
+  pheasant: {
+    name: 'Qirg‘ovul', points: 30, hp: 1, headDamage: 1, count: 12, groupSize: [1, 3], wadeDepth: 0.1, model: pheasantModel(), scale: 1.3,
+    habitat: 'meadow', walkSpeed: 1.1, runSpeed: 14, turnRate: 5, radius: 0.3,
+    senseRange: 13, grazeAngle: 0.4, lieHeight: 0.1,
+  },
+  // Silovsin: yolg'iz yirtqich, yashirinib poylaydi va yaqin kelganda sakraydi
+  lynx: {
+    track: { type: 'paw', size: 0.9, step: 1.3, width: 0.12 },
+    name: 'Silovsin', points: 90, hp: 2, headDamage: 2, count: 3, wadeDepth: 0.5, voice: 'snarl', scale: 0.82, tailWag: 0.05,
+    habitat: 'forest', ambush: true, pounceRange: 13,
+    model: lynxModel(),
+    walkSpeed: 1.6, runSpeed: 12.5, turnRate: 4.4, radius: 0.5,
+    senseRange: 34, alertTime: [0.2, 0.4], stride: 2.4, grazeAngle: 0.55, lieHeight: 0.24,
+    aggressive: true, damage: 22, biteRange: 1.8, giveUpRange: 55, recoverTime: 1.2,
+  },
 };
+
+/* Yashash joylari: hayvon shu joyda paydo bo'ladi va shu yerda yuradi */
+const forestDensity = (x, z) => layeredNoise(x * 0.022 + 60, z * 0.022 + 60);
+const HABITATS = {
+  mountain: (x, z) => mountainWeight(x, z) > 0.35,
+  meadow: (x, z) => mountainWeight(x, z) < 0.2 && (forestDensity(x, z) < 0.48 || swampWeight(x, z) > 0.3),
+  forest: (x, z) => swampWeight(x, z) < 0.3 && (forestDensity(x, z) > 0.52 || (mountainWeight(x, z) > 0.05 && mountainWeight(x, z) < 0.5)),
+};
+
+const inHabitat = (habitat, x, z) => !habitat || HABITATS[habitat](x, z);
+
+/** Yashash joyidan tasodifiy nuqta: tog' kichik, shuning uchun to'g'ridan-to'g'ri uning ichidan olinadi. */
+function habitatPoint(habitat) {
+  if (habitat === 'mountain' && mountain) {
+    const angle = Math.random() * TAU, distance = Math.sqrt(Math.random()) * mountain.radius * 0.7;
+    return { x: mountain.x + Math.cos(angle) * distance, z: mountain.z + Math.sin(angle) * distance };
+  }
+  return randomPoint(CONFIG.worldRadius - 6);
+}
 
 const animals = [];
 const ANIMAL_VIEW_DISTANCE = 175;
@@ -174,10 +218,11 @@ class Animal {
         x = leader.pos.x + randRange(-7, 7);
         z = leader.pos.z + randRange(-7, 7);
       } else {
-        ({ x, z } = randomPoint(CONFIG.worldRadius - 6));
+        ({ x, z } = habitatPoint(this.spec.habitat));
       }
       const farEnough = hunters.every((hunter) => Math.hypot(x - hunter.pos.x, z - hunter.pos.z) > minDistance);
-      if (farEnough && isDryLand(x, z) && isSpotFree(x, z, this.spec.radius + 0.3)) break;
+      const home = attempt > 30 || inHabitat(this.spec.habitat, x, z); // oxirgi urinishlarda shart yumshaydi
+      if (farEnough && home && isDryLand(x, z) && isSpotFree(x, z, this.spec.radius + 0.3)) break;
     }
     return { x, z };
   }
@@ -282,6 +327,8 @@ class Animal {
     } else if (spec.rears) {
       this.setState('rear', 1.5);
       sound.roar(this.pos);
+    } else if (spec.ambush && this.state !== 'lurk') {
+      this.setState('lurk', 25); // yashirinib poylaydi
     } else {
       this.setState('charge');
     }
@@ -385,11 +432,15 @@ class Animal {
     const sensed = distance < this.senseDistance(dt, distance);
     this.stateTime -= dt;
 
-    // Yirtqich gulxan yonidagi ovchiga yaqinlashmaydi, burilib ketadi
+    // Yirtqich gulxan yonidagi ovchiga yaqinlashmaydi, burilib ketadi. Qayiqdagiga yetolmaydi.
     if (spec.aggressive && !prey.immobile && FIRE_SHY_STATES.includes(this.state)) {
       const fire = campfireNear(prey.pos, CAMPFIRE.safeRadius);
       if (fire) {
         this.beginFlee({ pos: fire.mesh.position });
+        return 0;
+      }
+      if (prey.inBoat) {
+        this.pickWanderTarget();
         return 0;
       }
     }
@@ -426,6 +477,7 @@ class Animal {
         this.wantedHeading = Math.atan2(this.pos.x - danger.pos.x, this.pos.z - danger.pos.z)
           + Math.sin(this.gait * 0.13) * 0.5;
         if (spec.zigzag) this.wantedHeading += Math.sin(this.gait * 0.45) * 0.9;
+        if (spec.climbs) this.leanUphill();
         // Chegaraga yetganda burilib, dunyo markazi tomon qochadi
         if (Math.hypot(this.pos.x, this.pos.z) > CONFIG.worldRadius - 12) this.faceTowards(0, 0);
         if (this.stateTime <= 0) {
@@ -438,6 +490,13 @@ class Animal {
         }
         return spec.runSpeed;
       }
+
+      case 'lurk':
+        this.headGoal = 0.35;
+        this.faceTowards(prey.pos.x, prey.pos.z);
+        if (distance < spec.pounceRange) this.setState('charge');
+        else if (distance > spec.giveUpRange || this.stateTime <= 0) this.setState('graze', randRange(2, 5));
+        return distance > 24 ? spec.walkSpeed * 0.7 : 0; // uzoqda asta yaqinlashadi
 
       case 'charge':
         this.headGoal = 0.3;
@@ -527,8 +586,13 @@ class Animal {
   pickWanderTarget() {
     const leader = this.group && groupLeader(this.group);
     const drinkingSpot = this.spec.drinks && Math.random() < conditions.drinkChance ? this.pickDrinkingSpot() : null;
-    const angle = Math.random() * TAU, distance = randRange(8, 26);
+    let angle = Math.random() * TAU, distance = randRange(8, 26);
+    // Yashash joyidan chiqib ketmasin: bir necha yo'nalish sinaladi, bo'lmasa uyiga qaytadi
+    for (let tries = 0; tries < 6 && !inHabitat(this.spec.habitat, this.pos.x + Math.cos(angle) * distance, this.pos.z + Math.sin(angle) * distance); tries++) {
+      angle = Math.random() * TAU;
+    }
     let x = this.pos.x + Math.cos(angle) * distance, z = this.pos.z + Math.sin(angle) * distance;
+    if (!inHabitat(this.spec.habitat, x, z)) ({ x, z } = habitatPoint(this.spec.habitat));
     if (leader && leader !== this) {
       x = leader.pos.x + randRange(-6, 6);
       z = leader.pos.z + randRange(-6, 6);
@@ -539,6 +603,15 @@ class Animal {
     this.target = { x: x * scale, z: z * scale };
     this.avoidSide = pick([-1, 1]);
     this.setState('walk', randRange(6, 14));
+  }
+
+  /** Tog' echkisi qochganda tepaga qarab buriladi: yonbag'irda ovchi ortidan yetolmaydi. */
+  leanUphill() {
+    const { x, z } = this.pos;
+    const gx = terrainHeight(x + 2, z) - terrainHeight(x - 2, z), gz = terrainHeight(x, z + 2) - terrainHeight(x, z - 2);
+    const slope = Math.hypot(gx, gz);
+    if (slope < 0.05) return;
+    this.wantedHeading = Math.atan2(Math.sin(this.wantedHeading) + (gx / slope) * 0.9, Math.cos(this.wantedHeading) + (gz / slope) * 0.9);
   }
 
   /** Oldinda to'siq bo'lsa, yo'nalishni bir tomonga buradi. */
@@ -635,6 +708,9 @@ class Animal {
       this.legs[0].thigh.rotation.x -= this.rearAmount * 0.7;
       this.legs[1].thigh.rotation.x -= this.rearAmount * 0.5;
     }
+    // Poylayotgan silovsin yerga yopishadi
+    this.lurkAmount = damp(this.lurkAmount ?? 0, this.state === 'lurk' ? 1 : 0, 6, dt);
+    if (this.lurkAmount > 0.01) this.pos.y -= this.lurkAmount * 0.16;
   }
 
   /** Yurish va chopish: tezlik oshgani sari oyoq ritmi yurishdan yelishga o'tadi. */
@@ -759,9 +835,10 @@ class Waterfowl extends Animal {
   /** Gala havoda V shaklida tizilib uchadi: har qush yo'lboshchidan chap yoki o'ngda, orqaroqda. */
   takeOff(target, duration, height, leader, index) {
     const rank = Math.ceil(index / 2), side = index % 2 ? 1 : -1;
+    const toX = target.x + side * rank * 2, toZ = target.z + rank * 2;
     this.flight = {
-      fromX: this.pos.x, fromZ: this.pos.z,
-      toX: target.x + side * rank * 2, toZ: target.z + rank * 2,
+      fromX: this.pos.x, fromZ: this.pos.z, toX, toZ,
+      fromY: this.groundLevel(this.pos.x, this.pos.z), toY: this.groundLevel(toX, toZ),
       progress: 0, duration, height,
       leader: index > 0 ? leader : null,
       slotSide: side * rank * 3,
@@ -800,9 +877,9 @@ class Waterfowl extends Animal {
         z = lerp(z, leader.pos.z - sin * flight.slotSide - cos * flight.slotBack, blend);
       }
       this.heading = Math.atan2(x - pos.x, z - pos.z) || this.heading;
-      pos.set(x, WATER_LEVEL + Math.pow(Math.sin(t * Math.PI), 0.55) * flight.height, z);
+      pos.set(x, this.flightBase(flight, t) + Math.pow(Math.sin(t * Math.PI), 0.55) * flight.height, z);
       root.rotation.set(t < 0.5 ? -0.3 : 0.05, this.heading, 0);
-      if (t >= 1) this.setState('swim', randRange(2, 6));
+      if (t >= 1) this.land();
       return;
     }
 
@@ -820,6 +897,15 @@ class Waterfowl extends Animal {
     root.rotation.set(0, this.heading, 0);
   }
 
+  /** Parvozning boshlanish va tugash balandligi: suv qushi suv sathidan uchadi. */
+  flightBase() {
+    return WATER_LEVEL;
+  }
+
+  land() {
+    this.setState('swim', randRange(2, 6));
+  }
+
   animate(dt) {
     this.idleClock += dt;
     const flying = this.state === 'fly';
@@ -830,6 +916,74 @@ class Waterfowl extends Animal {
     this.head.rotation.x = flying ? -0.8 : 0;
     this.tail.rotation.x = this.spec.model.tail.rest;
     if (!flying) this.pos.y += Math.sin(this.idleClock * 2) * 0.012;
+  }
+}
+
+/** Qirg'ovul: yerda o'tlaydi, ovchi yaqinlashsa pir etib uchadi va 30–60 m narida qo'nadi. */
+class GroundBird extends Waterfowl {
+  findSpawnPoint(minDistance) {
+    return Animal.prototype.findSpawnPoint.call(this, minDistance);
+  }
+
+  groundLevel(x, z) {
+    return terrainHeight(x, z);
+  }
+
+  spawn(minDistance) {
+    Animal.prototype.spawn.call(this, minDistance);
+    this.flight = null;
+    this.setState('graze', randRange(2, 6));
+  }
+
+  /** Ovchidan teskari tomonga, quruq joyga uchadi. Gala birga ko'tariladi. */
+  startle() {
+    if (this.state === 'fly' || !this.alive || !this.spawned) return;
+    const flock = (this.group?.members ?? [this]).filter((bird) => bird.alive && bird.spawned && bird.state !== 'fly');
+    const from = this.prey ?? player;
+    const away = Math.atan2(this.pos.x - from.pos.x, this.pos.z - from.pos.z);
+    let target = null;
+    for (let i = 0; i < 8 && !target; i++) {
+      const angle = away + randRange(-0.8, 0.8), distance = randRange(30, 60);
+      const x = this.pos.x + Math.sin(angle) * distance, z = this.pos.z + Math.cos(angle) * distance;
+      if (Math.hypot(x, z) < CONFIG.worldRadius - 8 && isDryLand(x, z)) target = { x, z };
+    }
+    if (!target) return;
+    const duration = Math.max(2.5, Math.hypot(target.x - this.pos.x, target.z - this.pos.z) / this.spec.runSpeed);
+    flock.forEach((bird, index) => bird.takeOff(target, duration, randRange(5, 9), flock[0], index));
+    sound.cackle(this.pos);
+  }
+
+  think(dt) {
+    if (this.state === 'fly') return 0;
+    const distance = this.preyDistance;
+    if (distance < this.senseDistance(dt, distance)) {
+      this.startle();
+      return 0;
+    }
+    this.stateTime -= dt;
+    if (this.state === 'walk') {
+      this.headGoal = 0.1;
+      this.faceTowards(this.target.x, this.target.z);
+      const arrived = Math.hypot(this.target.x - this.pos.x, this.target.z - this.pos.z) < 1;
+      if (this.stateTime <= 0 || arrived) this.setState('graze', randRange(2, 6));
+      return this.spec.walkSpeed;
+    }
+    if (this.state !== 'graze') this.setState('graze', randRange(1, 3));
+    if (this.stateTime <= 0) this.pickWanderTarget();
+    return 0;
+  }
+
+  move(dt, speedGoal) {
+    if (this.state === 'fly') super.move(dt, speedGoal);
+    else Animal.prototype.move.call(this, dt, speedGoal);
+  }
+
+  flightBase(flight, t) {
+    return lerp(flight.fromY, flight.toY, t);
+  }
+
+  land() {
+    this.setState('graze', randRange(2, 5));
   }
 }
 
@@ -894,7 +1048,7 @@ class Fish extends Animal {
   }
 }
 
-const ANIMAL_CLASSES = { duck: Waterfowl, goose: Waterfowl, fish: Fish };
+const ANIMAL_CLASSES = { duck: Waterfowl, goose: Waterfowl, fish: Fish, pheasant: GroundBird };
 
 /** Guruhning hozirgi yo'lboshchisi: tirik a'zolardan birinchisi. */
 function groupLeader(group) {

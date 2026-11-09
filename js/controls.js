@@ -74,6 +74,7 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'KeyY') useTower();
   if (event.code === 'KeyU') useTrap();
   if (event.code === 'KeyL') useCampfire();
+  if (event.code === 'KeyE' && !game.reviveTarget) toggleBoat(); // turg'izish E ni bosib turish bilan
   if (event.code === 'KeyK' && dog.active) dog.staying = !dog.staying;
   if (event.code === 'KeyG' && game.mode === 'team') placePing();
   if (event.code === 'KeyV') toggleChatMenu();
@@ -117,6 +118,7 @@ const TOUCH_BUTTONS = [
   { id: 'tower', label: 'Minora', press: useTower, isAvailable: () => isEquipped('tower') },
   { id: 'trap', label: 'Tuzoq', press: useTrap, isAvailable: () => isEquipped('trap') },
   { id: 'campfire', label: 'Gulxan', press: useCampfire, isAvailable: () => isEquipped('campfire') },
+  { id: 'boat', label: 'Qayiq', press: toggleBoat, isOn: () => player.inBoat, isAvailable: () => (player.inBoat ? Boolean(landingSpot()) : Boolean(nearestDock()) && !conditions.frozen) },
   { id: 'ping', label: 'Belgi', press: () => placePing(), isAvailable: () => game.mode === 'team' },
   { id: 'chat', label: 'Xabar', press: toggleChatMenu, isOn: () => chat.menuOpen, isAvailable: () => game.mode === 'team' },
   { id: 'watch', label: 'Kuzatish', press: nextSpectateTarget, isAvailable: () => player.down && spectateTargets().length > 1 },

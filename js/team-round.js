@@ -11,7 +11,7 @@ const SEND_INTERVAL = {
 };
 const RELAY_VIEW_DISTANCE = 130;
 const HEARTBEAT_INTERVAL = 3;
-const ANIMAL_STATES = ['graze', 'walk', 'alert', 'flee', 'charge', 'recover', 'stalk', 'rear', 'swim', 'fly', 'hidden', 'leap', 'dead', 'pose', 'trapped'];
+const ANIMAL_STATES = ['graze', 'walk', 'alert', 'flee', 'charge', 'recover', 'stalk', 'rear', 'swim', 'fly', 'hidden', 'leap', 'dead', 'pose', 'trapped', 'lurk'];
 const REVIVE_TIME = 3;
 const REVIVE_RANGE = 2.8;
 const REVIVE_HEALTH = 40;
@@ -80,6 +80,7 @@ function beginTeamRound(setup, teamMission) {
 }
 
 function moveToSpawn(spawn) {
+  leaveBoat();
   player.pos.x = spawn?.x ?? 0;
   player.pos.z = spawn?.z ?? 0;
 }
@@ -108,7 +109,7 @@ function localPlayerState() {
   const speed = Math.hypot(player.velocity.x, player.velocity.z);
   return [
     +player.pos.x.toFixed(2), +player.pos.y.toFixed(2), +player.pos.z.toFixed(2), +player.yaw.toFixed(3),
-    +speed.toFixed(1), +player.noise.toFixed(2), player.crouching ? 1 : 0, player.down ? 1 : 0,
+    +speed.toFixed(1), +player.noise.toFixed(2), player.crouching ? 1 : 0, player.down ? 1 : 0, player.inBoat ? 1 : 0,
   ];
 }
 
@@ -222,7 +223,7 @@ const HOST_MESSAGES = {
   beat() {},
 
   me(member, { state }) {
-    if (!Array.isArray(state) || state.length !== 8 || !state.every(isNumber)) return;
+    if (!Array.isArray(state) || state.length !== 9 || !state.every(isNumber)) return;
     const [x, , z] = state;
     if (Math.abs(x) > FIELD_HALF || Math.abs(z) > FIELD_HALF) return;
     member.lastState = state;

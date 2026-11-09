@@ -17,7 +17,7 @@ Brauzerda ishlaydigan 3D ov o‘yini. Three.js, build bosqichi yo‘q. Foydalanu
 - Yangi fayl qo‘shsangiz, `index.html`dagi ro‘yxatga yozing.
 - Har chiqishda `index.html`dagi `BUILD` va `style.css?v=` raqamini oshiring, aks holda brauzer eski fayllarni ishlatadi.
 
-Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik, daryo, ko‘l, o‘tish joylari), `scene.js` (sharoit qatlamlari, fasl shaderi), `animals.js` (SPECIES, Animal, Waterfowl, Fish), `dog.js`, `weapons.js`, `game.js` (raund, natija), `day-cycle.js` (raund ichida kun o‘tishi), `missions.js`, `fishing.js`, `placeables.js` (minora, tuzoq), `progress.js` (daraja, trofey), `map.js` (xarita, kompas), `bots.js` (bot sheriklar), `team-missions.js`, `network.js`, `relay.js`, `team-round.js`, `team-chat.js` (tez xabarlar, `sendToTeam`), `team-battle.js` (jamoa jangi: ovchiga o‘q tegishi, lagerda turish), `spectate.js` (yiqilganda sherikni kuzatish), `lobby.js`, `controls.js` (tugmalar, do‘kon, jihoz tanlash), `main.js` (sikl).
+Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik, daryo, ko‘l, o‘tish joylari), `scene.js` (sharoit qatlamlari, fasl shaderi), `animals.js` (SPECIES, Animal, Waterfowl, Fish), `dog.js`, `weapons.js`, `game.js` (raund, natija), `day-cycle.js` (raund ichida kun o‘tishi), `missions.js`, `fishing.js`, `placeables.js` (minora, tuzoq, gulxan), `boat.js` (qayiq va ko‘prikchalar), `progress.js` (daraja, trofey), `map.js` (xarita, kompas), `bots.js` (bot sheriklar), `team-missions.js`, `network.js`, `relay.js`, `team-round.js`, `team-chat.js` (tez xabarlar, `sendToTeam`), `team-battle.js` (jamoa jangi: ovchiga o‘q tegishi, lagerda turish), `spectate.js` (yiqilganda sherikni kuzatish), `lobby.js`, `controls.js` (tugmalar, do‘kon, jihoz tanlash), `main.js` (sikl).
 
 ## Muhim tushunchalar
 
@@ -39,6 +39,10 @@ Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik
 - **Jamoa jangi:** `pvp`, `noRevive`, `noWipe`, `pickRoles`, `lateRole` bayroqlari. Ovchiga tekkan o‘qni xost `battleHit` bilan hal qiladi, jon `mission.health`da. Mijoz o‘z jonini `hurt` xabari bilan xuddi shuncha kamaytiradi, shuning uchun bu missiyada dori ichish o‘chiq.
 - **Kun o‘tishi:** `time: 'cycle'`. `prepareDayCycle` raund boshida 4 paytni bir marta hisoblaydi, `updateDayCycle` har kadrda `applyDaylight`ni chaqiradi. Payt `game.timeLeft`dan olinadi, tarmoqqa yangi maydon kerak emas. `applyConditions`ni har kadrda chaqirmang.
 - **Qo‘yiladigan narsalar** (minora, tuzoq, gulxan) `obstacleGrid`ga yozilmaydi, aks holda `worldChecksum` kech kirgan do‘stni rad etadi. Gulxan yorug‘ligi sahnada doim turgan 2 ta `PointLight`dan olinadi: chiroq sonini o‘zgartirish hamma shaderni qayta quradi.
+- **Tog‘ va botqoq:** `planRegion` ko‘llar va o‘tish joylaridan keyin urug‘li joy tanlaydi. `mountainWeight`, `swampWeight`, `mountainLift`, `swampLevel` balandlik, rang, o‘simlik va xaritada ishlatiladi. Joy topilmasa `mountain` yoki `swamp` null bo‘ladi: kod shunga tayyor bo‘lsin.
+- **Yashash joyi:** turdagi `habitat` (`mountain`, `meadow`, `forest`). `findSpawnPoint` va `pickWanderTarget` `inHabitat` va `habitatPoint` bilan joy tanlaydi.
+- **Yangi hayvonlar** `SPECIES` oxirida: eski raqamlar o‘zgarmasin. Qirg‘ovul `GroundBird extends Waterfowl` (`flightBase`, `land`), tuzoq qushga ishlamaydi. Silovsin `ambush` bilan `lurk` holatida poylaydi. Yangi holat qo‘shsangiz, `ANIMAL_STATES` oxiriga yozing, aks holda mijozda o‘tlayotgandek ko‘rinadi.
+- **Qayiq:** `player.inBoat`. Holat qatorining 9-maydoni, 4 joy birga o‘zgaradi: `localPlayerState`, xostdagi `me` uzunligi, `BotHunter.stateArray`, `RemoteHunter.applyState`. Ko‘prikchalarni `createDocks()` dunyo qurilgach tasodifsiz hisoblaydi.
 - **Zona janggi:** `versus: true` missiya. `goals` bo‘sh, vaqt tugashi g‘alaba hisoblanadi, ochkoni `board` ko‘rsatadi, `settleVersus` g‘olibga to‘liq, qolganlarga yarim mukofot beradi.
 
 ## Sinash
@@ -46,6 +50,7 @@ Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik
 - Brauzer paneli `file://`ni data sahifa qiladi va nisbiy fayllar yuklanmaydi. Mahalliy server kerak: `.claude/launch.json`da `python3 -m http.server 8642`, sinovdan keyin o‘chiring.
 - Oddiy `http.server` kesh sarlavhasi bermaydi: brauzer `?v=BUILD` bo‘yicha eski skriptni olib qoladi. Kod o‘zgarganda `BUILD`ni oshiring yoki `Cache-Control: no-store` beradigan server ishlating.
 - Global o‘zgaruvchilarga `javascript_tool`dan to‘g‘ridan-to‘g‘ri murojaat qilsa bo‘ladi (`player`, `game`, `animals`).
+- Panel yashirin bo‘lsa, `requestAnimationFrame` ishlamaydi. Uchburchak sonini `renderer.render(scene, camera)` ni qo‘lda chaqirib, `renderer.info`dan o‘qing.
 - Pointer lock panelda ishlamaydi, o‘yin erkin sichqoncha rejimiga o‘tadi. `document.hidden` false bo‘lsa ham panel yashirin bo‘lishi mumkin: FPS o‘lchovlariga ishonmang.
 - Server yo‘lini majburlash: manzilga `?relay=1` qo‘shing. Ikki tab bilan bitta kompyuterda WebRTC doim ishlaydi, haqiqiy tarmoqni aks ettirmaydi.
 - Botlar va missiyalarni tez sinash: `simulate(.05)`ni tsiklda chaqiring. Odam o‘yinchi turib qolsa, hayvon uni yiqitadi: `player.hp`ni tiklab turing, aks holda raund vaqtidan oldin tugaydi.

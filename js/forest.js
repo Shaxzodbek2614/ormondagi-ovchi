@@ -92,6 +92,17 @@ function birchGeometry() {
   );
 }
 
+/** Botqoqdagi qurigan daraxt: bargsiz, qiyshiq shoxlar. */
+function deadTreeGeometry() {
+  const bark = '#5b5047', dark = '#433a33';
+  return merge(
+    cylinder(0.12, 0.24, 5.2, bark, [0, 2.6, 0], [0, 0, 0.04]),
+    cylinder(0.05, 0.09, 1.8, dark, [0.55, 3.6, 0], [0, 0, -0.9]),
+    cylinder(0.04, 0.08, 1.5, bark, [-0.5, 4.2, 0.2], [0.3, 0, 0.8]),
+    cylinder(0.03, 0.06, 1.1, dark, [0.1, 5.2, -0.35], [-0.6, 0, 0.2]),
+  );
+}
+
 function bushGeometry() {
   return merge(
     lumpy(0.75, '#3f7a35', [0, 0.5, 0], [1.2, 0.85, 1.2]),
@@ -215,7 +226,7 @@ function updateDetailTiles() {
 
 function createForest() {
   const reach = CONFIG.worldRadius + 70;
-  const trees = { pine: [], oak: [], birch: [] };
+  const trees = { pine: [], oak: [], birch: [], dead: [] };
 
   // Daraxtlar: shovqin yordamida quyuq changalzorlar va ochiq sayhonliklar hosil bo'ladi
   for (let attempt = 0; attempt < 11000; attempt++) {
@@ -224,18 +235,24 @@ function createForest() {
     if (fromCenter < CONFIG.spawnClearing || !isDryLand(x, z)) continue;
     const insideWorld = fromCenter < CONFIG.worldRadius;
     if (insideWorld && layeredNoise(x * 0.022 + 60, z * 0.022 + 60) < 0.44) continue;
+    // Tog'da qor chizig'idan yuqorida daraxt yo'q, botqoqda siyrak
+    const high = mountainWeight(x, z), wet = swampWeight(x, z);
+    if ((high > 0 && terrainHeight(x, z) > SNOW_LINE - 3) || Math.random() < high * 0.35 + wet * 0.7) continue;
     if (!isSpotFree(x, z, insideWorld ? 3.2 : 2.9)) continue;
 
     const roll = Math.random();
-    const kind = roll < 0.58 ? 'pine' : roll < 0.82 ? 'oak' : 'birch';
+    let kind = roll < 0.58 ? 'pine' : roll < 0.82 ? 'oak' : 'birch';
+    if (high > 0.3) kind = 'pine';
+    if (wet > 0.3) kind = roll < 0.6 ? 'dead' : 'birch';
     const scale = randRange(0.85, 1.7);
-    const trunkRadius = { pine: 0.3, oak: 0.42, birch: 0.2 }[kind] * scale;
+    const trunkRadius = { pine: 0.3, oak: 0.42, birch: 0.2, dead: 0.22 }[kind] * scale;
     trees[kind].push({ x, z, scale });
     addObstacle(x, z, trunkRadius + 0.1, terrainHeight(x, z) + 9 * scale);
   }
   addInstances(pineGeometry(), trees.pine);
   addInstances(oakGeometry(), trees.oak);
   addInstances(birchGeometry(), trees.birch);
+  addInstances(deadTreeGeometry(), trees.dead);
 
   // Toshlar va to'nkalar: ustidan o'tib bo'lmaydi
   const rocks = [], stumps = [];
@@ -253,6 +270,15 @@ function createForest() {
     stumps.push({ x, z, scale });
     addObstacle(x, z, 0.5 * scale, terrainHeight(x, z) + 0.7 * scale);
   }
+  // Tog' yonbag'rida qo'shimcha xarsanglar
+  for (let i = 0; mountain && i < 320; i++) {
+    const angle = Math.random() * TAU, distance = Math.sqrt(Math.random()) * mountain.radius * 0.9;
+    const x = mountain.x + Math.cos(angle) * distance, z = mountain.z + Math.sin(angle) * distance;
+    if (Math.hypot(x, z) > CONFIG.worldRadius - 4 || !isDryLand(x, z) || !isSpotFree(x, z, 1.8)) continue;
+    const scale = randRange(0.7, 2.4);
+    rocks.push({ x, z, scale, sink: 0.15 * scale });
+    addObstacle(x, z, scale * 0.95, terrainHeight(x, z) + scale * 0.95);
+  }
   addInstances(rockGeometry(), rocks);
   addInstances(stumpGeometry(), stumps);
 
@@ -265,16 +291,17 @@ function createForest() {
     .filter(({ x, z }) => Math.hypot(x, z) > 8); // boshlang'ich nuqtada ko'rishni to'smasin
   addInstances(bushGeometry(), bushes);
   for (const { x, z, scale } of bushes) addToGrid(coverGrid, { x, z, radius: scale * 1.1 });
+  const belowSnow = ({ x, z }) => mountainWeight(x, z) === 0 || terrainHeight(x, z) < SNOW_LINE - 1;
   addInstances(grassTuftGeometry(), scatter(58000, CONFIG.worldRadius + 25, () => ({
     scale: randRange(0.8, 1.9),
     tint: new THREE.Color().setScalar(randRange(0.75, 1.1)),
-  })), { castShadow: false, detail: true, material: grassMaterial });
+  })).filter(belowSnow), { castShadow: false, detail: true, material: grassMaterial });
 
   const petals = ['#f4d04e', '#f7f3ea', '#b98be0', '#ee8fa8'].map((hex) => new THREE.Color(hex));
   addInstances(flowerGeometry(), scatter(3200, CONFIG.worldRadius, () => ({
     scale: randRange(0.9, 1.5),
     tint: pick(petals),
-  })), { castShadow: false, detail: true, summerOnly: true });
+  })).filter(({ x, z }) => mountainWeight(x, z) < 0.3), { castShadow: false, detail: true, summerOnly: true });
   addInstances(mushroomGeometry(), scatter(640, CONFIG.worldRadius, () => ({ scale: randRange(0.8, 1.8) })), { detail: true, summerOnly: true });
 }
 
@@ -311,6 +338,13 @@ function createShoreline() {
       lilies.push({ x, z, y: WATER_LEVEL + 0.03, scale: randRange(0.7, 1.4) });
     }
     if (depth > -0.9 && depth < -0.3 && Math.hypot(x, z) < CONFIG.worldRadius - 6) shorePoints.push({ x, z });
+  }
+  // Botqoqda qamish qalin o'sadi
+  for (let i = 0; swamp && i < 2600; i++) {
+    const angle = Math.random() * TAU, distance = Math.sqrt(Math.random()) * swamp.radius;
+    const x = swamp.x + Math.cos(angle) * distance, z = swamp.z + Math.sin(angle) * distance;
+    const depth = waterDepth(x, z);
+    if (depth > -0.6 && depth < 0.7 && Math.random() < 0.5) reeds.push({ x, z, scale: randRange(0.8, 1.5) });
   }
   addInstances(reedGeometry(), reeds);
   addInstances(lilyGeometry(), lilies, { castShadow: false });

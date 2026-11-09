@@ -57,17 +57,29 @@ const GROUND_COLORS = {
   dirt: new THREE.Color('#6e5a3b'),
   sand: new THREE.Color('#a89a6c'),
   mud: new THREE.Color('#4d4630'),
+  rock: new THREE.Color('#7f786b'),
+  snow: new THREE.Color('#e8ecef'),
+  marsh: new THREE.Color('#5f6a35'),
+  peat: new THREE.Color('#3d3624'),
 };
+const SNOW_LINE = 24; // tog'da shundan yuqorisi qor
 
 /** Bir nechta shovqin qatlami bilan o't, quruq joy, tuproq va qirg'oq ranglarini aralashtiradi. */
 function groundColor(x, y, z, color) {
-  const { lush, shade, dry, dirt, sand, mud } = GROUND_COLORS;
+  const { lush, shade, dry, dirt, sand, mud, rock, snow, marsh, peat } = GROUND_COLORS;
   color.lerpColors(lush, shade, smoothstep(layeredNoise(x * 0.05, z * 0.05), 0.35, 0.65));
   color.lerp(dry, smoothstep(layeredNoise(x * 0.02 + 40, z * 0.02 + 40), 0.52, 0.72) * 0.75);
   color.lerp(dirt, smoothstep(layeredNoise(x * 0.09 + 80, z * 0.09 + 80), 0.62, 0.74) * 0.8);
   const aboveWater = y - WATER_LEVEL;
-  color.lerp(sand, 1 - smoothstep(aboveWater, 0.15, 1.3));
+  const wet = swampWeight(x, z);
+  color.lerp(marsh, wet * 0.75);
+  color.lerp(sand, (1 - smoothstep(aboveWater, 0.15, 1.3)) * (1 - wet)); // botqoqda qum yo'q
   color.lerp(mud, 1 - smoothstep(aboveWater, -0.7, 0.14));
+  color.lerp(peat, wet * (1 - smoothstep(aboveWater, 0.1, 0.7)));
+  // Tog': yuqorida tosh, cho'qqida qor
+  const high = mountainWeight(x, z);
+  color.lerp(rock, high * smoothstep(y, 7, 16) * (0.7 + valueNoise(x * 0.3, z * 0.3) * 0.3));
+  color.lerp(snow, high * smoothstep(y, SNOW_LINE - 2, SNOW_LINE + 3)); // dunyo chetidagi tepaliklar qorsiz
 }
 
 /** Yer bo'laklarga bo'linadi: kameraga ko'rinmaydigan bo'laklar chizilmaydi. */

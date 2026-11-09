@@ -14,6 +14,7 @@ const player = {
   down: false,   // birga o'ynaganda: joni tugab yiqilgan
   lampOn: false, // bosh chirog'i
   onTower: null, // minora ustida bo'lsa, uning joyi
+  inBoat: false, // qayiqda eshkak eshmoqda
   noise: 0,      // shovqin darajasi: hayvonlar sezish masofasini shunga ko'paytiradi
   crouching: false,
   crouch: 0,     // 0 = tik turgan, 1 = to'liq egilgan
@@ -60,7 +61,7 @@ function updatePlayer(dt) {
   // Yiqilgan o'yinchi yura olmaydi: tirik sherigini kuzatadi yoki atrofga qaraydi
   if (player.down) {
     player.noise = 0;
-    player.pos.y = terrainHeight(player.pos.x, player.pos.z) + 0.4;
+    player.pos.y = player.inBoat ? WATER_LEVEL + 0.8 : terrainHeight(player.pos.x, player.pos.z) + 0.4;
     updateDownBanner();
     if (followSpectateTarget(dt)) return;
     camera.position.copy(player.pos);
@@ -75,32 +76,37 @@ function updatePlayer(dt) {
   const throttle = player.onTower ? 0 : Math.min(1, Math.hypot(forward, strafe)); // joystick qanchalik surilgan
   const moving = throttle > 0.12;
   const aiming = input.aiming && weapon.reloadLeft <= 0;
-  const sprinting = moving && !aiming && (keys.ShiftLeft || keys.ShiftRight);
-  if (sprinting) player.crouching = false;
+  const sprinting = moving && !aiming && !player.inBoat && (keys.ShiftLeft || keys.ShiftRight);
+  if (sprinting || player.inBoat) player.crouching = false;
   // Suvda qadam og'irlashadi
-  const wading = clamp(wadeDepthAt(player.pos.x, player.pos.z) / MAX_WADE_DEPTH, 0, 1);
+  const wading = player.inBoat ? 0 : clamp(wadeDepthAt(player.pos.x, player.pos.z) / MAX_WADE_DEPTH, 0, 1);
   const baseSpeed = sprinting ? cfg.sprintSpeed
     : player.crouching ? cfg.crouchSpeed
       : aiming ? cfg.aimSpeed : cfg.walkSpeed;
   const speed = baseSpeed * (1 - wading * 0.55);
 
-  // Bosilgan tugmalarni qarash yo'nalishiga nisbatan dunyo yo'nalishiga aylantiramiz
-  const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
-  const wishX = -sin * forward + cos * strafe;
-  const wishZ = -cos * forward - sin * strafe;
-  const length = Math.hypot(wishX, wishZ) || 1;
-  const targetSpeed = moving ? speed * throttle : 0;
-  player.velocity.x = damp(player.velocity.x, (wishX / length) * targetSpeed, 10, dt);
-  player.velocity.z = damp(player.velocity.z, (wishZ / length) * targetSpeed, 10, dt);
+  let blockedX = false, blockedZ = false;
+  if (player.inBoat) {
+    rowBoat(dt, forward, strafe);
+  } else {
+    // Bosilgan tugmalarni qarash yo'nalishiga nisbatan dunyo yo'nalishiga aylantiramiz
+    const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
+    const wishX = -sin * forward + cos * strafe;
+    const wishZ = -cos * forward - sin * strafe;
+    const length = Math.hypot(wishX, wishZ) || 1;
+    const targetSpeed = moving ? speed * throttle : 0;
+    player.velocity.x = damp(player.velocity.x, (wishX / length) * targetSpeed, 10, dt);
+    player.velocity.z = damp(player.velocity.z, (wishZ / length) * targetSpeed, 10, dt);
 
-  // Har bir o'q alohida tekshiriladi: chuqur suv bo'ylab sirpanib yurish mumkin
-  const nextX = player.pos.x + player.velocity.x * dt;
-  const nextZ = player.pos.z + player.velocity.z * dt;
-  const blockedX = wadeDepthAt(nextX, player.pos.z) > MAX_WADE_DEPTH;
-  const blockedZ = wadeDepthAt(player.pos.x, nextZ) > MAX_WADE_DEPTH;
-  if (!blockedX) player.pos.x = nextX;
-  if (!blockedZ) player.pos.z = nextZ;
-  pushOutOfObstacles(player.pos, cfg.radius);
+    // Har bir o'q alohida tekshiriladi: chuqur suv bo'ylab sirpanib yurish mumkin
+    const nextX = player.pos.x + player.velocity.x * dt;
+    const nextZ = player.pos.z + player.velocity.z * dt;
+    blockedX = wadeDepthAt(nextX, player.pos.z) > MAX_WADE_DEPTH;
+    blockedZ = wadeDepthAt(player.pos.x, nextZ) > MAX_WADE_DEPTH;
+    if (!blockedX) player.pos.x = nextX;
+    if (!blockedZ) player.pos.z = nextZ;
+    pushOutOfObstacles(player.pos, cfg.radius);
+  }
 
   // Dunyo chegarasi
   const fromCenter = Math.hypot(player.pos.x, player.pos.z);
@@ -119,8 +125,8 @@ function updatePlayer(dt) {
   player.crouch = damp(player.crouch, player.crouching ? 1 : 0, 10, dt);
   const eyeHeight = lerp(cfg.eyeHeight, cfg.crouchEyeHeight, player.crouch);
   const lowestStand = conditions.frozen ? WATER_LEVEL : WATER_LEVEL - 0.55;
-  player.pos.y = Math.max(terrainHeight(player.pos.x, player.pos.z), lowestStand) + eyeHeight
-    + (player.onTower ? TOWER_HEIGHT : 0);
+  player.pos.y = player.inBoat ? placeBoat()
+    : Math.max(terrainHeight(player.pos.x, player.pos.z), lowestStand) + eyeHeight + (player.onTower ? TOWER_HEIGHT : 0);
 
   // Hayvonlar shovqinni eshitadi: turgan odamni kechroq, yugurganni ertaroq sezadi.
   // Egilish va buta orasida turish bu masofani qisqartiradi, suvda shaloplash esa oshiradi.
@@ -132,6 +138,7 @@ function updatePlayer(dt) {
     * conditions.noise
     * (isEquipped('camo') ? 0.8 : 1)
     * (player.onTower ? 0.5 : 1) // minorada hid va shovqin yerga kamroq yetadi
+    * (player.inBoat ? 0.7 : 1) // suvda qadam tovushi yo'q
     * (dog.active && !dog.staying ? 1.15 : 1)
     * (player.lampOn && conditions.night ? 1.35 : 1) // tunda chiroq uzoqdan ko'rinadi
     * (ROLE_INFO[game.myRole]?.noise ?? 1);
@@ -141,7 +148,7 @@ function updatePlayer(dt) {
   const groundSpeed = Math.hypot(player.velocity.x, player.velocity.z);
   const previousStep = Math.floor(player.stepPhase / Math.PI);
   player.stepPhase += groundSpeed * 1.15 * dt;
-  if (Math.floor(player.stepPhase / Math.PI) !== previousStep) {
+  if (Math.floor(player.stepPhase / Math.PI) !== previousStep && !player.inBoat) {
     if (wading > 0.05) sound.splash();
     else sound.footstep(sprinting);
   }
@@ -183,7 +190,7 @@ function hintText(fromCenter, blockedByWater) {
   if (weapon.ammo === 0 && weapon.reserve === 0) return 'O‘q qolmadi';
   if (blockedByWater) return 'Bu yer juda chuqur: sayoz joyni qidiring';
   if (fromCenter > CONFIG.worldRadius - 2) return 'O‘rmon chegarasi: ortga qayting';
-  return dog.hint() ?? nearbyTrackLabel ?? fishingOffer();
+  return boatHint() ?? dog.hint() ?? nearbyTrackLabel ?? fishingOffer();
 }
 
 /** Hayvon zarbasi: ovchi shu kompyuterdagi o'yinchi bo'lsa, zararni shu yerda hisoblaymiz. */

@@ -3,7 +3,9 @@
 Brauzerda ishlaydigan 3D ov o‘yini. Three.js bilan yozilgan, model, tekstura va ovozlar kod bilan yasaladi.
 
 - **Erkin ov:** vaqt, ob-havo, fasl, shamol va qiyinlikni o‘zingiz tanlaysiz. "Tongdan tungacha" tanlansa, raund davomida kun o‘tadi.
-- **Missiyalar:** 10 ta yakka missiya, har biri 3 yulduzgacha.
+- **Dunyo:** o‘rmon, daryo, ko‘llar, qorli cho‘qqili tog‘ va botqoq. Ko‘l va daryoda qayiqda suzish mumkin.
+- **Hayvonlar:** bug‘u, quyon, cho‘chqa, tulki, o‘rdak, g‘oz, baliq, bo‘ri, ayiq, tog‘ echkisi, qirg‘ovul, silovsin.
+- **Missiyalar:** 12 ta yakka missiya, har biri 3 yulduzgacha.
 - **Qurollar:** 7 ta qurol, har birini do‘konda 3 darajagacha kuchaytirish mumkin.
 - **Jihozlar:** ov iti, minora, tuzoq, gulxan, durbin. Nimani olib chiqishni o‘zingiz tanlaysiz.
 - **Baliq ovi:** yozda qirg‘oqdan, qishda muzni teshib.

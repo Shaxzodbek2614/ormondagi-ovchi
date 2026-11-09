@@ -113,8 +113,9 @@ class RemoteHunter {
     this.tagTexture.needsUpdate = true;
   }
 
-  /** Tarmoqdan kelgan holat: [x, y, z, yaw, tezlik, shovqin, egilish, yiqilgan]. */
-  applyState([x, y, z, yaw, speed, noise, crouch, down]) {
+  /** Tarmoqdan kelgan holat: [x, y, z, yaw, tezlik, shovqin, egilish, yiqilgan, qayiqda]. */
+  applyState([x, y, z, yaw, speed, noise, crouch, down, inBoat]) {
+    this.inBoat = Boolean(inBoat);
     this.target.set(x, y, z);
     if (this.pos.distanceTo(this.target) > 12) this.pos.copy(this.target); // lagerga ko'chdi: sirg'anmasin
     this.targetYaw = yaw;
@@ -127,7 +128,8 @@ class RemoteHunter {
   update(dt) {
     this.pos.lerp(this.target, 1 - Math.exp(-12 * dt));
     this.yaw += angleDelta(this.yaw, this.targetYaw) * (1 - Math.exp(-14 * dt));
-    this.crouch = damp(this.crouch, this.crouchGoal ?? 0, 10, dt);
+    this.crouch = damp(this.crouch, this.inBoat ? 1 : this.crouchGoal ?? 0, 10, dt); // qayiqda o'tiradi
+    this.updateBoat();
 
     this.root.position.set(this.pos.x, this.pos.y - AVATAR_EYE_HEIGHT + this.crouch * 0.6, this.pos.z);
     // Kamera -Z ga qaraydi, model esa +Z ga, shuning uchun yarim aylana qo'shiladi
@@ -142,7 +144,20 @@ class RemoteHunter {
     });
   }
 
+  /** Sherik qayiqda bo'lsa, uning tagida qayiq ko'rinadi. */
+  updateBoat() {
+    if (this.inBoat && !this.boatMesh) {
+      this.boatMesh = new THREE.Mesh(boatShape, gearMaterial);
+      scene.add(this.boatMesh);
+    }
+    if (!this.boatMesh) return;
+    this.boatMesh.visible = this.inBoat;
+    this.boatMesh.position.set(this.pos.x, WATER_LEVEL - 0.08, this.pos.z);
+    this.boatMesh.rotation.y = this.yaw;
+  }
+
   remove() {
+    if (this.boatMesh) scene.remove(this.boatMesh);
     scene.remove(this.root);
     const index = hunters.indexOf(this);
     if (index >= 0) hunters.splice(index, 1);

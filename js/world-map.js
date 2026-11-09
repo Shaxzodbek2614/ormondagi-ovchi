@@ -71,6 +71,50 @@ const riverPoints = planRiver();
 const lakes = planLakes(riverPoints);
 const fords = planFords(riverPoints, lakes);
 
+/** Tog' va botqoq uchun joy: markazdan, daryodan, ko'llardan va bir-biridan uzoqda. Topilmasa, kichikroq urinadi. */
+function planRegion(sizes, minFromCenter, maxFromCenter, others) {
+  for (const radius of sizes) {
+    for (let attempt = 0; attempt < 150; attempt++) {
+      const angle = Math.random() * TAU, distance = randRange(minFromCenter, maxFromCenter);
+      const x = Math.cos(angle) * distance, z = Math.sin(angle) * distance;
+      const clear = lakes.every((lake) => Math.hypot(lake.x - x, lake.z - z) > lake.radius + radius + 10)
+        && riverPoints.every((point) => Math.hypot(point.x - x, point.z - z) > radius + 16)
+        && others.every((other) => Math.hypot(other.x - x, other.z - z) > other.radius + radius + 20);
+      if (clear) return { x, z, radius, peak: radius * 0.55 };
+    }
+  }
+  return null;
+}
+
+const mountain = planRegion([70, 58, 46], 140, 190, []);
+const swamp = planRegion([45, 36], 80, 200, mountain ? [mountain] : []);
+
+/** Tog' ulushi: markazida 1, chetida 0. */
+function mountainWeight(x, z) {
+  if (!mountain) return 0;
+  return 1 - smoothstep(Math.hypot(x - mountain.x, z - mountain.z) / mountain.radius, 0.55, 1);
+}
+
+function swampWeight(x, z) {
+  if (!swamp) return 0;
+  return 1 - smoothstep(Math.hypot(x - swamp.x, z - swamp.z) / swamp.radius, 0.6, 1);
+}
+
+/** Tog' balandligi: cho'qqiga qarab tiklashadi, yonbag'ri notekis. */
+function mountainLift(x, z) {
+  if (!mountain) return 0;
+  const reach = Math.hypot(x - mountain.x, z - mountain.z) / mountain.radius;
+  if (reach >= 1) return 0;
+  const shape = Math.pow(1 - smoothstep(reach, 0, 1), 1.4);
+  const rough = 0.75 + layeredNoise(x * 0.05 + 500, z * 0.05 + 500) * 0.5;
+  return mountain.peak * shape * rough;
+}
+
+/** Botqoq sathi: suvga yaqin, sayoz ko'lmaklar va loy orolchalar almashib keladi. */
+function swampLevel(x, z) {
+  return WATER_LEVEL + (valueNoise(x * 0.09 + 520, z * 0.09 + 520) - 0.55) * 1.7;
+}
+
 /** Nuqtadan daryo o'rta chizig'igacha bo'lgan masofa. */
 function distanceToRiver(x, z) {
   let nearest = Infinity;
@@ -104,7 +148,9 @@ function smoothMax(a, b, softness) {
 /** Bir nuqtaning yer balandligini noldan hisoblaydi. Dunyo chetida yer ko'tarilib, tabiiy devor hosil qiladi. */
 function computeHeight(x, z) {
   const hills = (layeredNoise(x * 0.014 + 10, z * 0.014 + 10) - 0.5) * 14;
-  const land = smoothMax(hills + 3, WATER_LEVEL + 1.7, 1.5);
+  let land = smoothMax(hills + 3, WATER_LEVEL + 1.7, 1.5) + mountainLift(x, z);
+  const marsh = swampWeight(x, z);
+  if (marsh > 0) land = lerp(land, swampLevel(x, z), marsh);
 
   const riverEdge = distanceToRiver(x, z) - (4.5 + valueNoise(x * 0.02 + 200, z * 0.02 + 200) * 4);
   const lakeEdge = distanceToLake(x, z);

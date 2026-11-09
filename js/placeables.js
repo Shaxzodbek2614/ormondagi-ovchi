@@ -17,7 +17,7 @@ const CAMPFIRE = {
   lights: 2,        // yorug'lik soni o'zgarmasin: aks holda shader qayta quriladi
 };
 // Yirtqich shu holatlarda gulxan yonidagi ovchidan qaytadi
-const FIRE_SHY_STATES = ['alert', 'stalk', 'charge', 'rear'];
+const FIRE_SHY_STATES = ['alert', 'stalk', 'charge', 'rear', 'lurk'];
 
 const placeables = new Map(); // id -> { id, kind, x, z, mesh }
 let nextPlaceableId = 1;
@@ -207,7 +207,7 @@ function updateTraps(dt) {
   for (const trap of placeables.values()) {
     if (trap.kind !== 'trap') continue;
     const prey = animals.find((animal) => animal.alive && animal.spawned && !animal.dormant
-      && !animal.spec.warmOnly && animal.state !== 'trapped'
+      && !animal.spec.warmOnly && !(animal instanceof Waterfowl) && animal.state !== 'trapped'
       && Math.hypot(animal.pos.x - trap.x, animal.pos.z - trap.z) < TRAP_RANGE);
     if (!prey) continue;
     prey.setState('trapped', prey.spec.rears ? TRAP_HOLD.big : TRAP_HOLD.normal);

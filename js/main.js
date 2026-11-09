@@ -8,6 +8,7 @@ createTerrain();
 createWater();
 createForest();
 createShoreline();
+createDocks();
 createAnimals();
 Math.random = nativeRandom; // dunyo tayyor: bundan keyingi tasodif har kompyuterda o'zicha
 applySetup(profile.setup);

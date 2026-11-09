@@ -141,14 +141,20 @@ function earPair(x, y, z, geometry, tiltX, tiltZ) {
   return { geometry, tiltX, tiltZ, pivots: [[-x, y, z], [x, y, z]] };
 }
 
-function deerModel({ back = '#8c5c36', belly = '#dcc6a2', dark = '#5e3c24' } = {}) {
-  const hoof = '#1d1612', bone = '#ddcfae';
-  const antler = (side) => [
+function deerModel({ back = '#8c5c36', belly = '#dcc6a2', dark = '#5e3c24', horns = false } = {}) {
+  const hoof = '#1d1612', bone = '#ddcfae', hornColor = '#5d4c38';
+  // Tog' echkisi shoxi: orqaga egilgan uch bo'lak
+  const horn = (side) => [
+    cylinder(0.026, 0.04, 0.24, hornColor, [side * 0.06, 0.2, -0.05], [-0.45, 0, -side * 0.15], 6),
+    cylinder(0.02, 0.03, 0.24, hornColor, [side * 0.08, 0.36, -0.17], [-1.1, 0, -side * 0.15], 6),
+    cylinder(0.012, 0.022, 0.22, hornColor, [side * 0.09, 0.41, -0.36], [-1.85, 0, -side * 0.12], 6),
+  ];
+  const antler = (side) => (horns ? horn(side) : [
     cylinder(0.017, 0.028, 0.32, bone, [side * 0.1, 0.25, -0.07], [-0.25, 0, -side * 0.4], 5),
     cylinder(0.012, 0.018, 0.3, bone, [side * 0.2, 0.48, -0.05], [0.35, 0, -side * 0.25], 5),
     cylinder(0.008, 0.015, 0.17, bone, [side * 0.13, 0.31, 0.05], [1, 0, -side * 0.2], 5),
     cylinder(0.007, 0.013, 0.17, bone, [side * 0.26, 0.6, 0.06], [0.9, 0, -side * 0.4], 5),
-  ];
+  ]);
   return {
     body: loft([
       [1.2, -0.8, 0.03, 0.03], [1.2, -0.74, 0.15, 0.19], [1.19, -0.55, 0.235, 0.285], [1.15, -0.2, 0.25, 0.295],
@@ -336,6 +342,29 @@ function canineModel({ back, belly, sock, tailTip, muzzle, earScale = 1, tailSca
   };
 }
 
+/** Silovsin: it shaklidan olinadi, lekin tumshug'i kalta, tanasi xolli, quloq uchida qora popuk. */
+function lynxModel() {
+  const back = '#b08b5c', belly = '#ece0c8', spot = '#5e4630';
+  const model = canineModel({ back, belly, sock: '#9b7b52', tailTip: '#1c1a18', muzzle: belly, earScale: 1.4, tailScale: 0.32 });
+  const spots = [[0.17, 0.92, 0.2], [0.18, 0.84, -0.1], [0.16, 0.95, -0.36], [0.19, 0.8, 0.36]]
+    .flatMap(([x, y, z]) => [blob(0.035, spot, [x, y, z], [0.3, 1, 1.3]), blob(0.035, spot, [-x, y, z], [0.3, 1, 1.3])]);
+  model.body = merge(model.body, spots);
+  model.head.geometry = merge(
+    loft([
+      [0.04, -0.1, 0.06, 0.06], [0.05, -0.03, 0.125, 0.11], [0.03, 0.07, 0.11, 0.1], [0, 0.16, 0.07, 0.06], [-0.01, 0.21, 0.04, 0.035],
+    ], { top: back, bottom: belly, tip: ['#141010', 0.9], sides: 10 }),
+    eyes(0.08, 0.06, 0.06, 0.02, '#8a6a1c'),
+    blob(0.06, belly, [0.1, -0.03, -0.02], [0.6, 1, 1]),
+    blob(0.06, belly, [-0.1, -0.03, -0.02], [0.6, 1, 1]),
+  );
+  const ear = merge(
+    painted(new THREE.ConeGeometry(0.084, 0.22, 8), back, [0, 0.1, 0], [0, 0, 0], [1, 1, 0.45]),
+    cylinder(0.006, 0.012, 0.12, '#151210', [0, 0.26, 0], [0, 0, 0], 4),
+  );
+  model.ears = earPair(0.07, 0.13, -0.04, ear, -0.1, 0.22);
+  return model;
+}
+
 function bearModel() {
   const back = '#46321f', belly = '#694b33', muzzle = '#a98a66', claw = '#1a1410';
   const ear = blob(0.085, back, [0, 0.03, 0], [1, 1, 0.45]);
@@ -409,6 +438,30 @@ function duckModel() {
     neckRings: [[-0.02, -0.02, 0.05, 0.055], [0.08, 0.03, 0.04, 0.04], [0.16, 0.04, 0.04, 0.04]],
     headPivot: [0, 0.18, 0.05],
   });
+}
+
+/** Qirg'ovul: o'rdak shakli, lekin oyoqda turadi va dumi uzun. */
+function pheasantModel() {
+  const model = waterfowlModel({
+    back: '#9a5a2c', belly: '#6f3a1c', wing: '#8b6a3e', neckColor: '#2b5a4c', headColor: '#1e4b40', bill: '#d9c78f',
+    collar: '#f2ede2', cheek: '#c4302a',
+    neckRings: [[-0.02, -0.02, 0.05, 0.055], [0.08, 0.03, 0.04, 0.04], [0.15, 0.04, 0.036, 0.038]],
+    headPivot: [0, 0.17, 0.05],
+  });
+  const lift = 0.09;
+  model.body = merge(
+    model.body.translate(0, lift, 0),
+    cylinder(0.012, 0.012, 0.14, '#8d7b58', [0.05, 0.07, 0.02], [0, 0, 0], 4),
+    cylinder(0.012, 0.012, 0.14, '#8d7b58', [-0.05, 0.07, 0.02], [0, 0, 0], 4),
+  );
+  model.neck.pivot[1] += lift;
+  model.wings.pivots.forEach((pivot) => { pivot[1] += lift; });
+  model.hitBody.center[1] += lift;
+  model.tail = {
+    pivot: [0, 0.2 + lift, -0.2], rest: -0.2,
+    geometry: painted(new THREE.ConeGeometry(0.035, 0.6, 5), '#8a5a30', [0, 0, -0.3], [-Math.PI / 2, 0, 0], [1, 1, 0.35]),
+  };
+  return model;
 }
 
 function gooseModel() {

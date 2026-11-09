@@ -10,7 +10,7 @@
 const pointer = { lockWorked: false, free: IS_TOUCH_DEVICE };
 
 // Har bir tur uchun topshiriqda nechta ovlash kerakligi
-const MISSION_GOALS = { rabbit: 3, deer: 2, fox: 1, boar: 2, duck: 1, goose: 2, wolf: 2, bear: 1, fish: 1 };
+const MISSION_GOALS = { rabbit: 3, deer: 2, fox: 1, boar: 2, duck: 1, goose: 2, wolf: 2, bear: 1, fish: 1, ibex: 1, pheasant: 2, lynx: 1 };
 
 /** Raund uchun tasodifiy uchta topshiriq. */
 function createMissions() {
@@ -99,6 +99,7 @@ function useMedkit() {
 }
 
 function resetRound() {
+  leaveBoat();
   // Topshiriqlar faqat shu raundda bor hayvonlardan tanlanishi uchun bu birinchi bajariladi.
   // Qishda issiqsevarlar yo'q, oson qiyinlikda yirtqichlar kamroq.
   for (const animal of animals) {
@@ -170,6 +171,7 @@ function applySetup(setup) {
   ui.conditionLine.textContent = conditions.name;
   sound.setRain(Boolean(conditions.rain));
   prepareDayCycle(setup); // vaqt yozuvini hozirgi payt bilan almashtiradi
+  updateDockSeason();
 }
 
 /** Sichqoncha qulflanganda yoki erkin rejimda o'yinni boshlaydi/davom ettiradi. */

@@ -29,11 +29,19 @@ function drawMapBase() {
       if (depth > 0) {
         const shallow = clamp(1 - depth / 1.6, 0, 1);
         color = frozen ? [176 + shallow * 30, 208 + shallow * 20, 222] : [34 + shallow * 60, 92 + shallow * 70, 124 + shallow * 40];
+        const marsh = frozen ? 0 : swampWeight(x, z) * 0.7; // botqoq suvi loyqa
+        color = color.map((value, channel) => lerp(value, [74, 96, 70][channel], marsh));
       } else if (y - WATER_LEVEL < 0.7) {
         color = frozen ? [226, 232, 234] : [176, 162, 112];
       } else {
         const light = clamp((y + 2) / 12, 0, 1);
         color = frozen ? [206 + light * 30, 212 + light * 28, 216 + light * 26] : [58 + light * 44, 92 + light * 42, 48 + light * 26];
+        // Tog' toshi va qori, botqoq o'ti
+        const high = mountainWeight(x, z), wet = swampWeight(x, z);
+        const rocky = high * clamp((y - 8) / 10, 0, 1), snowy = high * clamp((y - SNOW_LINE + 2) / 4, 0, 1);
+        color = color.map((value, channel) => lerp(value, [128, 122, 110][channel], rocky));
+        color = color.map((value, channel) => lerp(value, [236, 239, 241][channel], snowy));
+        color = color.map((value, channel) => lerp(value, [96, 100, 58][channel], wet * 0.8));
       }
       const index = (row * MAP_SIZE + column) * 4;
       image.data.set([...color, 255], index);
@@ -131,6 +139,7 @@ function renderMap() {
   }
   if (game.teamStatus?.camp) drawLabel(pen, 0, 0, 'Lager', '#ffb26b');
 
+  for (const dock of docks) drawDot(pen, dock.land.x, dock.land.z, '#c89a5b', 3.5);
   for (const item of placeables.values()) {
     const color = { tower: '#d9a35a', campfire: '#ff8a3d' }[item.kind] ?? '#b9bec4';
     drawDot(pen, item.x, item.z, color, 4);

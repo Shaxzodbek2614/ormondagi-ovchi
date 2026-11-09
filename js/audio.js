@@ -173,6 +173,31 @@ const sound = {
       this.tone({ type: 'square', from: 520, to: 300, volume: volume * 0.18, duration: 0.11, delay: i * 0.17, target: panner });
     }
   },
+  /** Tog' echkisi mangrashi. */
+  bleat(position) {
+    if (!this.context) return;
+    const { panner, volume } = this.spatial(position);
+    for (let i = 0; i < 3; i++) {
+      this.tone({ type: 'sawtooth', from: 380, to: 330, volume: volume * 0.14, duration: 0.12, delay: i * 0.1, target: panner });
+    }
+  },
+  /** Qirg'ovul ko'tarilganda: qichqiriq va qanot pirillashi. */
+  cackle(position) {
+    if (!this.context) return;
+    const { panner, volume } = this.spatial(position);
+    this.tone({ type: 'square', from: 900, to: 600, volume: volume * 0.12, duration: 0.14, target: panner });
+    this.tone({ type: 'square', from: 820, to: 560, volume: volume * 0.1, duration: 0.12, delay: 0.17, target: panner });
+    for (let i = 0; i < 6; i++) {
+      this.noiseHit({ type: 'bandpass', from: 1600, to: 700, volume: volume * 0.2, duration: 0.05, delay: i * 0.05, target: panner });
+    }
+  },
+  /** Silovsin xirillashi. */
+  snarl(position) {
+    if (!this.context) return;
+    const { panner, volume } = this.spatial(position);
+    this.tone({ type: 'sawtooth', from: 220, to: 120, volume: volume * 0.3, duration: 0.5, target: panner });
+    this.noiseHit({ type: 'bandpass', from: 1400, to: 500, volume: volume * 0.35, duration: 0.5, target: panner });
+  },
   /** Uzoqdan eshitiladigan bo'ri uvillashi. */
   howl() {
     if (!this.context) return;

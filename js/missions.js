@@ -233,6 +233,39 @@ const MISSIONS = [
       bringAnimals('rabbit', 6, player.pos.x, player.pos.z, 35, 70);
     },
   },
+  {
+    id: 'mountain-peak',
+    title: 'Tog‘ cho‘qqisi',
+    brief: 'Tog‘ echkilari yonbag‘irda yuradi. Ular uzoqdan sezadi va tepaga qochadi. Uchta tog‘ echkisini oting.',
+    setup: { time: 'dawn', weather: 'clear', season: 'autumn', wind: 'breeze', difficulty: 'normal', duration: '300' },
+    weapons: ['rifle', 'sniper', 'carbine', 'magnum'],
+    goals: [{ kind: 'ibex', goal: 3, text: 'Tog‘ echkisi' }],
+    reward: 110,
+    fastLeft: 140,
+    tips: ['Pastdan, shamolga qarshi yaqinlashing. Mergan miltig‘i uzoqdan otishga qulay.'],
+    prepare() {
+      if (!mountain) return;
+      // O'yinchi tog' etagida, cho'qqiga qarab turadi
+      const away = Math.hypot(mountain.x, mountain.z) || 1;
+      player.pos.x = mountain.x - (mountain.x / away) * mountain.radius * 1.05;
+      player.pos.z = mountain.z - (mountain.z / away) * mountain.radius * 1.05;
+      player.yaw = Math.atan2(player.pos.x - mountain.x, player.pos.z - mountain.z);
+    },
+  },
+  {
+    id: 'pheasant-flush',
+    title: 'Qirg‘ovul ovi',
+    brief: 'Qirg‘ovullar o‘tloqda o‘tirib qoladi. Yaqinlashsangiz pir etib uchadi. Beshtasini havoda uring.',
+    setup: { time: 'day', weather: 'cloudy', season: 'autumn', wind: 'calm', difficulty: 'normal', duration: '300' },
+    weapons: ['shotgun', 'rifle'],
+    goals: [{ kind: 'pheasant', airborne: true, goal: 5, text: 'Havodagi qirg‘ovul' }],
+    reward: 80,
+    fastLeft: 140,
+    tips: ['Ov miltig‘ini oldindan mo‘ljalga oling: qush tez ko‘tariladi va uzoqqa ketmaydi.'],
+    prepare() {
+      bringAnimals('pheasant', 12, player.pos.x, player.pos.z, 18, 60);
+    },
+  },
 ];
 
 /** Missiya ochiqmi: nechta missiya bajarilgan bo'lsa, ro'yxatda shuncha pog'ona ochiq. */

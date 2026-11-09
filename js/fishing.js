@@ -62,7 +62,7 @@ function fishingSpot() {
 
 function startWaiting() {
   fishing.state = 'waiting';
-  fishing.timer = randRange(...FISHING.wait);
+  fishing.timer = randRange(...FISHING.wait) * (player.inBoat ? 0.6 : 1); // qayiqdan chuqurda tezroq ilinadi
 }
 
 function stopFishing() {

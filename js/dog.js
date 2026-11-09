@@ -69,7 +69,7 @@ class HuntingDog extends Animal {
     if (!this.active) return;
     this.prey = player;
     this.preyDistance = this.distanceToPlayer();
-    if (this.preyDistance > DOG.teleport) this.spawn(0);
+    if (this.preyDistance > DOG.teleport && !player.inBoat) this.spawn(0); // egasi qayiqda: qirg'oqda kutadi
 
     this.scentClock -= dt;
     if (this.scentClock <= 0) {

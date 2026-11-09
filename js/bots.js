@@ -65,7 +65,7 @@ class BotHunter extends RemoteHunter {
   /** Mijozlarga yuboriladigan holat: odam o'yinchi bilan bir xil ko'rinishda. */
   stateArray() {
     const { x, y, z } = this.target;
-    return [+x.toFixed(2), +y.toFixed(2), +z.toFixed(2), +this.targetYaw.toFixed(3), +this.speed.toFixed(1), +this.noise.toFixed(2), this.crouchGoal, this.down ? 1 : 0];
+    return [+x.toFixed(2), +y.toFixed(2), +z.toFixed(2), +this.targetYaw.toFixed(3), +this.speed.toFixed(1), +this.noise.toFixed(2), this.crouchGoal, this.down ? 1 : 0, 0];
   }
 
   distanceTo(point) {
