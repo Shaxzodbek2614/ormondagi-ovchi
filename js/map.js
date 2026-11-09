@@ -132,15 +132,16 @@ function renderMap() {
   if (game.teamStatus?.camp) drawLabel(pen, 0, 0, 'Lager', '#ffb26b');
 
   for (const item of placeables.values()) {
-    drawDot(pen, item.x, item.z, item.kind === 'tower' ? '#d9a35a' : '#b9bec4', 4);
+    const color = { tower: '#d9a35a', campfire: '#ff8a3d' }[item.kind] ?? '#b9bec4';
+    drawDot(pen, item.x, item.z, color, 4);
   }
   for (const ping of game.pings ?? []) {
     drawDot(pen, ping.point.x, ping.point.z, ping.color, 5);
     drawLabel(pen, ping.point.x, ping.point.z, ping.text, ping.color);
   }
   for (const member of network.roster.values()) {
-    if (!member.hunter || member.hunter === player) continue;
-    const color = HUNTER_COLORS[member.colorIndex % HUNTER_COLORS.length];
+    if (!member.hunter || member.hunter === player || !sameTeam(member.id, myRosterId())) continue; // raqib xaritada yo'q
+    const color = memberColor(member);
     drawDot(pen, member.hunter.pos.x, member.hunter.pos.z, color, 6);
     drawLabel(pen, member.hunter.pos.x, member.hunter.pos.z, member.name, color);
   }
@@ -191,8 +192,8 @@ function updateCompass() {
     !best || Math.hypot(ford.x - player.pos.x, ford.z - player.pos.z) < Math.hypot(best.x - player.pos.x, best.z - player.pos.z) ? ford : best), null);
   if (nearestFord) marker(nearestFord.x, nearestFord.z, '#ffd24d');
   for (const member of network.roster.values()) {
-    if (member.hunter && member.hunter !== player) {
-      marker(member.hunter.pos.x, member.hunter.pos.z, HUNTER_COLORS[member.colorIndex % HUNTER_COLORS.length]);
+    if (member.hunter && member.hunter !== player && sameTeam(member.id, myRosterId())) {
+      marker(member.hunter.pos.x, member.hunter.pos.z, memberColor(member));
     }
   }
 }

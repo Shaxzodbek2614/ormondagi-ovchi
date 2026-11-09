@@ -55,6 +55,8 @@ const ui = {
   teamLine: byId('teamLine'),
   missionsTitle: byId('missionsTitle'),
   markers: byId('markers'),
+  chatMenu: byId('chatMenu'),
+  chatFeed: byId('chatFeed'),
   downBanner: byId('downBanner'),
   team: byId('team'),
   teamBtn: byId('teamBtn'),
@@ -167,6 +169,7 @@ function updateMedkitHud() {
   const items = [];
   if (profile.medkits) items.push(`Dori: ${profile.medkits} (H)`);
   if (isEquipped('trap')) items.push(`Tuzoq: ${profile.traps} (U)`);
+  if (isEquipped('campfire')) items.push(`Gulxan: ${profile.campfires} (L)`);
   ui.medkitLine.textContent = items.join(' · ');
 }
 

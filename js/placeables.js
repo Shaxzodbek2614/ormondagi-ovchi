@@ -1,13 +1,23 @@
 'use strict';
 
 /* ==========================================================================
-   MINORA VA TUZOQ
+   MINORA, TUZOQ VA GULXAN
    Birga o'ynaganda ro'yxatni xost yuritadi va hammaga tarqatadi.
+   Bular obstacleGrid'ga yozilmaydi: aks holda kech kirgan do'stning o'rmoni mos kelmaydi.
    ========================================================================== */
 
 const TOWER_HEIGHT = 5.2;
 const TRAP_RANGE = 1.5;
 const TRAP_HOLD = { normal: 8, big: 4 };
+const CAMPFIRE = {
+  life: 120,        // shuncha soniya yonadi
+  safeRadius: 16,   // yirtqich shu masofadagi ovchiga hujum qilmaydi
+  healRadius: 4,
+  healEvery: 0.5,   // yonida har yarim soniyada 1 jon tiklanadi
+  lights: 2,        // yorug'lik soni o'zgarmasin: aks holda shader qayta quriladi
+};
+// Yirtqich shu holatlarda gulxan yonidagi ovchidan qaytadi
+const FIRE_SHY_STATES = ['alert', 'stalk', 'charge', 'rear'];
 
 const placeables = new Map(); // id -> { id, kind, x, z, mesh }
 let nextPlaceableId = 1;
@@ -40,21 +50,68 @@ function trapGeometry() {
   );
 }
 
-const placeableShapes = { tower: towerGeometry(), trap: trapGeometry() };
+/** Gulxan: tosh halqa va o'tin. Olov alohida, yorug'likka bog'liq bo'lmagan material bilan. */
+function campfireGeometry() {
+  const stones = [];
+  for (let i = 0; i < 9; i++) {
+    const angle = (i / 9) * TAU;
+    stones.push(box(0.22, 0.16, 0.18, '#6f6a62', [Math.cos(angle) * 0.62, 0.07, Math.sin(angle) * 0.62], [0, -angle, 0]));
+  }
+  return merge(
+    stones,
+    cylinder(0.07, 0.09, 1, '#4e3825', [0, 0.14, 0], [Math.PI / 2, 0.6, Math.PI / 2]),
+    cylinder(0.07, 0.09, 1, '#4e3825', [0, 0.14, 0], [Math.PI / 2, -0.6, Math.PI / 2]),
+    cylinder(0.07, 0.09, 0.9, '#5a4029', [0, 0.2, 0], [Math.PI / 2, 0, 0]),
+  );
+}
+
+const flameShape = merge(cone(0.34, 0.85, '#ff7a22', [0, 0.55, 0]), cone(0.2, 0.62, '#ffd15c', [0.04, 0.48, 0.03]));
+const flameMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
+const campfireLights = Array.from({ length: CAMPFIRE.lights }, () => {
+  const light = new THREE.PointLight('#ff9a4a', 0, 24, 2);
+  scene.add(light);
+  return light;
+});
+let healClock = 0;
+
+const placeableShapes = { tower: towerGeometry(), trap: trapGeometry(), campfire: campfireGeometry() };
 
 function showPlaceable({ id, kind, x, z }) {
   const mesh = new THREE.Mesh(placeableShapes[kind], gearMaterial);
   mesh.position.set(x, terrainHeight(x, z), z);
   mesh.castShadow = true;
   scene.add(mesh);
-  placeables.set(id, { id, kind, x, z, mesh });
+  const item = { id, kind, x, z, mesh };
+  if (kind === 'campfire') {
+    item.flame = new THREE.Mesh(flameShape, flameMaterial);
+    mesh.add(item.flame);
+    item.until = elapsed + CAMPFIRE.life;
+    item.light = campfireLights.find((light) => !light.userData.fire) ?? null;
+    if (item.light) {
+      item.light.userData.fire = item;
+      item.light.position.set(x, mesh.position.y + 1.2, z);
+    }
+  }
+  placeables.set(id, item);
 }
 
 function hidePlaceable(id) {
   const item = placeables.get(id);
   if (!item) return;
   scene.remove(item.mesh);
+  if (item.light) {
+    item.light.intensity = 0;
+    item.light.userData.fire = null;
+  }
   placeables.delete(id);
+}
+
+/** Yonib turgan eng yaqin gulxan, radius ichida bo'lsa. */
+function campfireNear(position, radius) {
+  for (const item of placeables.values()) {
+    if (item.kind === 'campfire' && Math.hypot(item.x - position.x, item.z - position.z) < radius) return item;
+  }
+  return null;
 }
 
 function clearPlaceables() {
@@ -88,6 +145,44 @@ function useTower() {
     requestBuild('tower', player.pos.x, player.pos.z);
     player.onTower = { x: player.pos.x, z: player.pos.z };
     showPopup('Minora qurildi');
+  }
+}
+
+/** L tugmasi: oldingizga gulxan yoqadi. */
+function useCampfire() {
+  if (!isEquipped('campfire') || player.onTower) return;
+  const x = player.pos.x - Math.sin(player.yaw) * 2, z = player.pos.z - Math.cos(player.yaw) * 2;
+  if (!isDryLand(x, z) && !conditions.frozen) {
+    showPopup('Suvda gulxan yonmaydi');
+    return;
+  }
+  profile.campfires--;
+  saveProfile();
+  updateMedkitHud();
+  requestBuild('campfire', x, z);
+  showPopup('Gulxan yoqildi');
+}
+
+/** Olov lipillaydi, yonida jon tiklanadi. Xost vaqti tugagan gulxanni o'chiradi. */
+function updateCampfires(dt) {
+  for (const item of placeables.values()) {
+    if (item.kind !== 'campfire') continue;
+    const flicker = Math.sin(elapsed * 17 + item.id) * 0.5 + Math.sin(elapsed * 6.3 + item.id * 2) * 0.5;
+    item.flame.scale.set(1, 1 + flicker * 0.12, 1);
+    if (item.light) item.light.intensity = 26 + flicker * 6;
+    if (!network.isClient && elapsed > item.until) {
+      hidePlaceable(item.id);
+      if (network.isHost) broadcast({ t: 'unbuilt', id: item.id });
+    }
+  }
+
+  healClock -= dt;
+  if (healClock > 0) return;
+  healClock = CAMPFIRE.healEvery;
+  const canHeal = !player.down && player.hp < CONFIG.player.maxHp && !game.activeMission?.pvp;
+  if (canHeal && campfireNear(player.pos, CAMPFIRE.healRadius)) {
+    player.hp += 1;
+    updateHealthHud();
   }
 }
 

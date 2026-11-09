@@ -88,7 +88,8 @@ function onAnimalKilled(animal, moment) {
 
 /** Dori ichish: H tugmasi. */
 function useMedkit() {
-  if (profile.medkits === 0 || player.hp >= CONFIG.player.maxHp) return;
+  // Jamoa jangida jonni xost sanaydi: dori ichish hisobni buzadi
+  if (profile.medkits === 0 || player.hp >= CONFIG.player.maxHp || game.activeMission?.pvp) return;
   profile.medkits--;
   saveProfile();
   player.hp = Math.min(CONFIG.player.maxHp, player.hp + CONFIG.medkitHeal);
@@ -168,6 +169,7 @@ function applySetup(setup) {
   updateTileCounts();
   ui.conditionLine.textContent = conditions.name;
   sound.setRain(Boolean(conditions.rain));
+  prepareDayCycle(setup); // vaqt yozuvini hozirgi payt bilan almashtiradi
 }
 
 /** Sichqoncha qulflanganda yoki erkin rejimda o'yinni boshlaydi/davom ettiradi. */

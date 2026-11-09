@@ -336,6 +336,12 @@ function rayToObstacle(origin, direction, maxDistance) {
 
 const liveHitBoxes = () => animals.filter((a) => a.alive && a.root.visible).flatMap((a) => a.hitBoxes);
 
+/** Jamoa jangida raqib ovchilar ham nishon. */
+const enemyHitBoxes = () => (game.activeMission?.pvp
+  ? hunters.filter((h) => h.hitBoxes && !h.down && !sameTeam(h.id, myRosterId())).flatMap((h) => h.hitBoxes)
+  : []);
+const shotTargets = () => [...liveHitBoxes(), ...enemyHitBoxes()];
+
 /** Tarqalish: yo'nalishga kichik tasodifiy og'ish qo'shadi. */
 function scatterDirection(direction, spread) {
   return direction.clone().add(position3(randRange(-spread, spread), randRange(-spread, spread), randRange(-spread, spread))).normalize();
@@ -353,13 +359,14 @@ function showImpact(point, hitsTree) {
   }
 }
 
-/** Hayvonga tekkan zarba. */
-function registerHit(animal, part, power, point) {
+/** Nishonga tekkan zarba: hayvon yoki raqib ovchi. Qarorni xost qiladi. */
+function registerHit(target, part, power, point) {
   burst(point, '#7a1f14', 12, 3.5);
   sound.impact();
   ui.hitMarker.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220 });
-  if (network.isClient) sendToHost({ t: 'hit', id: animal.id, part, power });
-  else applyHit(animal, part, power, network.roster.get(HOST_ID));
+  if (!target.spec) sendToHost({ t: 'hitHunter', id: target.id, part, power });
+  else if (network.isClient) sendToHost({ t: 'hit', id: target.id, part, power });
+  else applyHit(target, part, power, network.roster.get(HOST_ID));
 }
 
 /** Zarbani hayvonga qo'llaydi: yakka o'yinda shu yerda, birga o'ynaganda xostda. */
@@ -396,11 +403,12 @@ function traceShot(origin, direction, range, targets, struck) {
   const [hit] = raycaster.intersectObjects(targets, false);
 
   if (hit) {
-    const { animal, part } = hit.object.userData;
-    const record = struck.get(animal) ?? { count: 0, part: 'body', point: hit.point };
+    const { part } = hit.object.userData;
+    const target = hit.object.userData.animal ?? hit.object.userData.hunter;
+    const record = struck.get(target) ?? { count: 0, part: 'body', point: hit.point };
     record.count++;
     if (part === 'head') record.part = 'head';
-    struck.set(animal, record);
+    struck.set(target, record);
   } else if (Math.min(obstacleAt, groundAt) < range) {
     showImpact(origin.clone().addScaledVector(direction, Math.min(obstacleAt, groundAt)), obstacleAt < groundAt);
   }
@@ -429,15 +437,15 @@ function fire() {
     return;
   }
 
-  const targets = liveHitBoxes();
+  const targets = shotTargets();
   const struck = new Map();
   for (let pellet = 0; pellet < (gun.pellets ?? 1); pellet++) {
     traceShot(origin, scatterDirection(direction, spread), gun.range, targets, struck);
   }
   if (struck.size) game.hits++;
   // Sochma o'qda har uchta tekkan mayda o'q bir zarbaga teng
-  for (const [animal, { count, part, point }] of struck) {
-    registerHit(animal, part, Math.max(1, Math.round(count / 3)) * gun.power, point);
+  for (const [target, { count, part, point }] of struck) {
+    registerHit(target, part, Math.max(1, Math.round(count / 3)) * gun.power, point);
   }
 
   // O'q ovozi atrofdagi hayvonlarni cho'chitadi. Guldurak paytida ovoz bosilib ketadi.
@@ -491,12 +499,12 @@ function updateArrows(dt) {
     const obstacleAt = rayToObstacle(position, direction, step);
     raycaster.set(position, direction);
     raycaster.far = Math.min(step, obstacleAt);
-    const [hit] = raycaster.intersectObjects(liveHitBoxes(), false);
+    const [hit] = raycaster.intersectObjects(shotTargets(), false);
 
     if (hit) {
-      const { animal, part } = hit.object.userData;
+      const { animal, hunter, part } = hit.object.userData;
       game.hits++;
-      registerHit(animal, part, arrow.power, hit.point);
+      registerHit(animal ?? hunter, part, arrow.power, hit.point);
       stopArrow(arrow, 0);
       continue;
     }

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>O‘rmondagi ovchi</title>
 
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=7">
 
 <!-- Three.js CDN'dan olinadi. O'yindagi barcha model, tekstura va ovozlar kod bilan yasaladi. -->
 <script type="importmap">
@@ -64,6 +64,8 @@
   <div id="feed"></div>
   <div id="tip"></div>
   <div id="markers"></div>
+  <div id="chatFeed"></div>
+  <div id="chatMenu" hidden></div>
   <canvas id="compass" width="420" height="34"></canvas>
   <div id="downBanner" hidden>Yiqildingiz. Sherigingiz sizni turg‘izishi kerak.</div>
   <div id="hint" hidden></div>
@@ -108,10 +110,11 @@
       <dt><kbd>H</kbd></dt><dd>Dori ichish</dd>
       <dt><kbd>F</kbd></dt><dd>Bosh chirog‘i</dd>
       <dt><kbd>G</kbd></dt><dd>Sherikka belgi</dd>
+      <dt><kbd>V</kbd></dt><dd>Tez xabar</dd>
       <dt><kbd>E</kbd></dt><dd>Sherikni turg‘izish</dd>
       <dt><kbd>Tab</kbd></dt><dd>Xarita</dd>
       <dt><kbd>T</kbd></dt><dd>Baliq tutish</dd>
-      <dt><kbd>Y</kbd> <kbd>U</kbd></dt><dd>Minora, tuzoq</dd>
+      <dt><kbd>Y</kbd> <kbd>U</kbd> <kbd>L</kbd></dt><dd>Minora, tuzoq, gulxan</dd>
       <dt><kbd>K</kbd></dt><dd>Itga buyruq</dd>
       <dt><kbd>M</kbd></dt><dd>Ovozni o‘chirish</dd>
     </dl>
@@ -314,7 +317,7 @@
   window.THREE = THREE;
   window.mergeGeometries = mergeGeometries;
 
-  const BUILD = 5; // yangi versiya chiqqanda oshiriladi: brauzer eski fayllarni ishlatmasligi uchun
+  const BUILD = 7; // yangi versiya chiqqanda oshiriladi: brauzer eski fayllarni ishlatmasligi uchun
 
   const files = [
     'config.js',
@@ -332,6 +335,7 @@
     'audio.js',
     'hud.js',
     'game.js',
+    'day-cycle.js',
     'missions.js',
     'fishing.js',
     'placeables.js',
@@ -343,6 +347,9 @@
     'network.js',
     'team-missions.js',
     'team-round.js',
+    'team-chat.js',
+    'team-battle.js',
+    'spectate.js',
     'lobby.js',
     'controls.js',
     'main.js',

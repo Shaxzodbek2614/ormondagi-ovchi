@@ -69,6 +69,7 @@ function beginTeamRound(setup, teamMission) {
   game.teamStatus = null;
   renderTeamStatus(null);
   game.pings = [];
+  clearChat();
   game.menuOpen = true; // o'yinchi tugmani bosmaguncha boshqaruv yoqilmaydi
   game.state = 'playing';
   ui.lobby.hidden = true;
@@ -249,20 +250,18 @@ const HOST_MESSAGES = {
   },
 
   build(member, { kind, x, z }) {
-    if ((kind === 'tower' || kind === 'trap') && isNumber(x) && isNumber(z)) buildPlaceable(kind, x, z);
+    if (['tower', 'trap', 'campfire'].includes(kind) && isNumber(x) && isNumber(z)) buildPlaceable(kind, x, z);
   },
 
   ping(member, { x, y, z }) {
     if (![x, y, z].every(isNumber)) return;
     game.activeMission?.onPing?.(x, z);
-    const message = { t: 'ping', id: member.id, x, y, z, label: labelNear(x, z) };
-    broadcast(message);
-    showPing(message);
+    sendToTeam(member.id, { t: 'ping', id: member.id, x, y, z, label: labelNear(x, z) }, showPing);
   },
 
   revive(member, { id }) {
     const target = network.roster.get(String(id));
-    if (!target?.hunter?.down) return;
+    if (!target?.hunter?.down || game.activeMission?.noRevive) return;
     if (target.id === HOST_ID) reviveSelf();
     else if (target.isBot) target.hunter.revive();
     else sendTo(target.connection, { t: 'revived' });
@@ -367,6 +366,7 @@ const CLIENT_MESSAGES = {
 
 function goDown() {
   player.down = true;
+  player.downAt = elapsed;
   player.hp = 0;
   player.velocity.set(0, 0, 0);
   updateHealthHud();
@@ -384,13 +384,13 @@ function reviveSelf() {
 
 /** Xost: hamma yiqilsa, raund tugaydi. */
 function checkTeamWipe() {
-  if (!network.isHost || game.mode !== 'team' || game.state !== 'playing') return;
+  if (!network.isHost || game.mode !== 'team' || game.state !== 'playing' || game.activeMission?.noWipe) return;
   if (hunters.filter((hunter) => !hunter.immobile).every((hunter) => hunter.down)) endRound('Butun jamoa yiqildi');
 }
 
 function nearestDownedMate() {
-  if (player.down) return null;
-  return hunters.find((hunter) => hunter !== player && hunter.down
+  if (player.down || game.activeMission?.noRevive) return null;
+  return hunters.find((hunter) => hunter !== player && hunter.down && sameTeam(hunter.id, myRosterId())
     && Math.hypot(hunter.pos.x - player.pos.x, hunter.pos.z - player.pos.z) < REVIVE_RANGE) ?? null;
 }
 
@@ -433,7 +433,7 @@ function showPing({ id, x, y, z, label }) {
   game.pings.push({
     point: new THREE.Vector3(x, y, z),
     text: cleanName(label || member?.name),
-    color: HUNTER_COLORS[(member?.colorIndex ?? 0) % HUNTER_COLORS.length],
+    color: memberColor(member),
     until: performance.now() + PING_LIFETIME,
   });
   sound.tick();
@@ -464,11 +464,11 @@ function updateMarkers() {
     }
   }
   for (const member of network.roster.values()) {
-    if (!member.hunter || member.hunter === player) continue;
+    if (!member.hunter || member.hunter === player || !sameTeam(member.id, myRosterId())) continue; // raqib yashirin
     const distance = Math.round(member.hunter.pos.distanceTo(player.pos));
     if (distance < 25 && !member.hunter.down) continue; // yaqinda boshi ustidagi nom yetarli
     items.push({
-      point: member.hunter.pos, color: HUNTER_COLORS[member.colorIndex % HUNTER_COLORS.length],
+      point: member.hunter.pos, color: memberColor(member),
       text: `${member.hunter.down ? 'Yordam! ' : ''}${member.name} · ${distance} m`,
     });
   }

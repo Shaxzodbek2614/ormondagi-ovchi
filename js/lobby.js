@@ -65,7 +65,7 @@ function renderLobby() {
   ui.lobbyPlayers.replaceChildren(...[...network.roster.values()].map((member) => {
     const item = document.createElement('li');
     item.textContent = member.name + (member.id === HOST_ID ? ' (xost)' : '') + (member.id === network.myId ? ' · siz' : '');
-    item.style.color = HUNTER_COLORS[member.colorIndex % HUNTER_COLORS.length];
+    item.style.color = memberColor(member);
     return item;
   }));
   ui.lobbyHostTools.hidden = ui.lobbyStartBtn.hidden = !network.isHost;

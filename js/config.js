@@ -95,6 +95,7 @@ const DEFAULT_PROFILE = {
   weaponLevels: {}, // qurol id: kuchaytirish darajasi
   botCount: 2,
   traps: 0,
+  campfires: 0,
   xp: 0,
   trophies: { kills: {}, headshots: 0, longestShot: 0 },
   nickname: '',
@@ -128,7 +129,9 @@ function saveProfile() {
 
 const profile = loadProfile();
 const owns = (itemId) => profile.owned.includes(itemId);
-const hasGear = (itemId) => (itemId === 'trap' ? profile.traps > 0 : owns(itemId));
+// Tuzoq va gulxan sanaladi: tugasa, jihoz yo'q hisoblanadi
+const GEAR_COUNTS = { trap: 'traps', campfire: 'campfires' };
+const hasGear = (itemId) => (GEAR_COUNTS[itemId] ? profile[GEAR_COUNTS[itemId]] > 0 : owns(itemId));
 
 /** Jihoz raundga olib chiqiladimi: sotib olingan va o'yinchi o'chirib qo'ymagan bo'lishi kerak. */
 const isEquipped = (itemId) => hasGear(itemId) && profile.loadout[itemId] !== false;

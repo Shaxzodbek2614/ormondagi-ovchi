@@ -113,6 +113,14 @@ function normalizeSetup(setup, changed) {
   if (setup.season !== 'winter' && setup.weather === 'snow') setup.weather = 'cloudy';
 }
 
+// "Tongdan tungacha": tong qiymatlaridan boshlanadi, keyin day-cycle.js o'zgartiradi
+SETUP_OPTIONS.time.choices.cycle = {
+  ...SETUP_OPTIONS.time.choices.dawn,
+  name: 'Tongdan tungacha',
+  note: 'Raund davomida kun o‘tadi: tongda hayvon suvga keladi, tunda yirtqich ko‘payadi.',
+  cycle: true,
+};
+
 function buildConditions(setup) {
   const pickChoice = (key) => SETUP_OPTIONS[key].choices[setup[key]];
   const time = pickChoice('time'), weather = pickChoice('weather'), season = pickChoice('season');
@@ -144,6 +152,8 @@ function buildConditions(setup) {
     predatorSense: (time.predatorSense ?? 1) * difficulty.sense,
     preySense: difficulty.sense,
     night: setup.time === 'night',
+    cycle: Boolean(time.cycle),
+    drinkChance: setup.time === 'dawn' ? 0.6 : 0.3,
     frozen: Boolean(season.frozen),
     snow: season.snow ?? 0,
     autumn: season.autumn ?? 0,
@@ -183,6 +193,15 @@ function addSeasonShader(shader) {
 
 function applyConditions(next) {
   conditions = next;
+  applyDaylight(next);
+  scene.fog.color.copy(HORIZON_COLOR);
+  skyMaterial.uniforms.cloudLevel.value = next.clouds;
+  seasonUniforms.snowCover.value = next.snow;
+  seasonUniforms.autumnCover.value = next.autumn;
+}
+
+/** Vaqtga bog'liq yorug'lik. Kun o'tishida har kadrda chaqiriladi, shader qayta qurilmaydi. */
+function applyDaylight(next) {
   SKY_COLOR.copy(next.sky);
   HORIZON_COLOR.copy(next.horizon);
   SUN_DIRECTION.set(...next.sun).normalize();
@@ -195,12 +214,9 @@ function applyConditions(next) {
   weaponSun.color.set(next.sunColor);
   weaponSun.intensity = next.sunPower * 0.76;
   weaponSkyLight.intensity = next.ambient * 1.07;
-  skyMaterial.uniforms.cloudLevel.value = next.clouds;
   skyMaterial.uniforms.sunGlow.value = next.sunPower / 2.9;
   skyMaterial.uniforms.cloudLight.value = clamp(next.ambient / 1.3, 0.1, 1);
   skyMaterial.uniforms.stars.value = next.stars;
-  seasonUniforms.snowCover.value = next.snow;
-  seasonUniforms.autumnCover.value = next.autumn;
 }
 
 /** Soya kamerasi o'yinchi bilan birga yuradi. Sakrashli qadam soya titrashini kamaytiradi. */

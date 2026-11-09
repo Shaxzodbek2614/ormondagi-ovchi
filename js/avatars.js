@@ -60,33 +60,63 @@ class RemoteHunter {
       const thigh = addPart(model.thigh, this.root, [side * 0.1, 0.9, 0]);
       return { thigh, shin: addPart(model.shin, thigh, [0, -0.44, 0]) };
     });
-    this.root.add(this.createNameTag());
+    this.nameTag = this.createNameTag();
+    this.root.add(this.nameTag);
+    // Jamoa jangi uchun ko'rinmas nishon qutilari: oyoq tagidan o'lchanadi
+    this.hitBoxes = [
+      createHitBox({ size: [0.62, 1.5, 0.46], center: [0, 0.82, 0] }, this.root, null, 'body'),
+      createHitBox({ size: [0.34, 0.36, 0.34], center: [0, 1.66, 0] }, this.root, null, 'head'),
+    ];
+    for (const box of this.hitBoxes) box.userData.hunter = this;
+    // Jamoa rangidagi bog'ich: jamoa bo'lmasa ko'rinmaydi
+    this.band = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.215, 0.14, 12, 1, true), new THREE.MeshLambertMaterial());
+    this.band.position.y = 1.32;
+    this.band.visible = false;
+    this.root.add(this.band);
+    this.teamColor = null;
     scene.add(this.root);
+  }
+
+  /** Jamoa rangi: ism yozuvi va bog'ich shu rangga bo'yaladi. null bo'lsa, o'z rangi. */
+  setTeamColor(color) {
+    if (this.teamColor === color) return;
+    this.teamColor = color;
+    this.band.visible = Boolean(color);
+    if (color) this.band.material.color.set(color);
+    this.drawNameTag(color ?? this.color);
   }
 
   /** Boshi ustidagi nom: rangli yozuv. */
   createNameTag() {
-    const paper = document.createElement('canvas');
-    paper.width = 256;
-    paper.height = 64;
-    const pen = paper.getContext('2d');
+    this.tagPaper = document.createElement('canvas');
+    this.tagPaper.width = 256;
+    this.tagPaper.height = 64;
+    this.tagTexture = new THREE.CanvasTexture(this.tagPaper);
+    this.drawNameTag(this.color);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tagTexture, depthWrite: false }));
+    sprite.scale.set(1.8, 0.45, 1);
+    sprite.position.y = 2.15;
+    return sprite;
+  }
+
+  drawNameTag(color) {
+    const pen = this.tagPaper.getContext('2d');
+    pen.clearRect(0, 0, 256, 64);
     pen.font = '600 34px "Avenir Next", "Segoe UI", sans-serif';
     pen.textAlign = 'center';
     pen.textBaseline = 'middle';
     pen.lineWidth = 6;
     pen.strokeStyle = 'rgba(0, 0, 0, .7)';
     pen.strokeText(this.name, 128, 32);
-    pen.fillStyle = this.color;
+    pen.fillStyle = color;
     pen.fillText(this.name, 128, 32);
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(paper), depthWrite: false }));
-    sprite.scale.set(1.8, 0.45, 1);
-    sprite.position.y = 2.15;
-    return sprite;
+    this.tagTexture.needsUpdate = true;
   }
 
   /** Tarmoqdan kelgan holat: [x, y, z, yaw, tezlik, shovqin, egilish, yiqilgan]. */
   applyState([x, y, z, yaw, speed, noise, crouch, down]) {
     this.target.set(x, y, z);
+    if (this.pos.distanceTo(this.target) > 12) this.pos.copy(this.target); // lagerga ko'chdi: sirg'anmasin
     this.targetYaw = yaw;
     this.speed = speed;
     this.noise = noise;

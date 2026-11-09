@@ -11,6 +11,8 @@ const ROLE_INFO = {
   ambusher: { name: 'Pistirmachi', tip: 'Siz pistirmachisiz: zonada egilib kuting va kelgan bug‘uni oting.' },
   observer: { name: 'Kuzatuvchi', tip: 'Siz kuzatuvchisiz: B bilan durbindan qarang, G bilan nishonni belgilang. Qurolingiz yo‘q.', fog: 0.5, unarmed: true },
   shooter: { name: 'Otuvchi', tip: 'Siz otuvchisiz: ko‘rish masofangiz qisqa. Sherigingiz belgilagan nishonni oting.', fog: 3.6 },
+  blue: { name: 'Ko‘k jamoa', team: 'blue', tip: 'Siz Ko‘k jamoadasiz: Qizil jamoa ovchilarini yiqiting. Sherigingizga o‘q tegmaydi.' },
+  red: { name: 'Qizil jamoa', team: 'red', tip: 'Siz Qizil jamoadasiz: Ko‘k jamoa ovchilarini yiqiting. Sherigingizga o‘q tegmaydi.' },
 };
 
 const groupCenter = () => {
@@ -372,6 +374,118 @@ const TEAM_MISSIONS = [
       return { zone: this.zone, board, text: 'Zona janggi' };
     },
   },
+  {
+    id: 'team-battle',
+    title: 'Jamoa jangi',
+    brief: 'Ko‘k va Qizil jamoa bir-birini ov qiladi. Raqibni yiqitish 100 ochko, ov ham jamoaga ochko beradi. 1000 ochkoga birinchi yetgan yoki vaqt tugaganda oldinda bo‘lgan jamoa yutadi. Yiqilgan ovchi 6 soniyada o‘z lagerida turadi.',
+    minPlayers: 2,
+    versus: true,
+    teams: true,
+    pvp: true,
+    noRevive: true, // sherikni turg'izish yo'q, lagerda o'zi turadi
+    noWipe: true,
+    setup: { time: 'day', weather: 'clear', season: 'summer', wind: 'calm', difficulty: 'normal', duration: '300' },
+    goals: [],
+    reward: 180,
+    prepare() {
+      const angle = Math.random() * TAU, { campDistance } = BATTLE;
+      this.camps = {
+        blue: nearbyPoint(Math.cos(angle) * campDistance, Math.sin(angle) * campDistance, 0, 6),
+        red: nearbyPoint(-Math.cos(angle) * campDistance, -Math.sin(angle) * campDistance, 0, 6),
+      };
+      this.middle = nearbyPoint(0, 0, 0, 12);
+      this.score = { blue: 0, red: 0 };
+      this.health = new Map();
+      this.downAt = new Map();
+      this.safeUntil = new Map(); // lagerda turgan ovchiga bir necha soniya o'q tegmaydi
+      this.downs = new Map();
+      // Yirtqichlar uxlaydi: bu jangda xavf raqib jamoadan keladi
+      for (const animal of animals.filter(({ spec }) => spec.aggressive)) {
+        animal.dormant = true;
+        animal.root.visible = false;
+      }
+    },
+    /** Avval odamlar ikki jamoaga teng bo'linadi, keyin botlar bo'sh joyni to'ldiradi. */
+    pickRoles(members) {
+      const roles = {}, size = { blue: 0, red: 0 };
+      for (const member of [...members.filter((m) => !m.isBot), ...members.filter((m) => m.isBot)]) {
+        const team = size.blue <= size.red ? 'blue' : 'red';
+        roles[member.id] = team;
+        size[team]++;
+      }
+      return roles;
+    },
+    /** Raund ketayotganda kirgan do'st odami kamroq jamoaga qo'shiladi. */
+    lateRole() {
+      const size = { blue: 0, red: 0 };
+      for (const role of Object.values(network.roles)) if (role in size) size[role]++;
+      return size.blue <= size.red ? 'blue' : 'red';
+    },
+    spawnFor(role) {
+      return this.campSpot(role);
+    },
+    campSpot(team) {
+      const camp = this.camps[team] ?? { x: 0, z: 0 };
+      return nearbyPoint(camp.x, camp.z, 2, 7);
+    },
+    addScore(team, points) {
+      if (!(team in this.score)) return;
+      this.score[team] += points;
+      if (this.score[team] >= BATTLE.winScore && game.state === 'playing') {
+        endRound(`${TEAMS[team].name} ${BATTLE.winScore} ochkoga yetdi`, true);
+      }
+    },
+    /** Xost: zarbani beradi. Jon tugasa, otgan jamoaga ochko va lagerda turish navbati. */
+    hurt(shooter, target, amount) {
+      if ((this.safeUntil.get(target.id) ?? 0) > elapsed) return;
+      const left = Math.max(0, (this.health.get(target.id) ?? CONFIG.player.maxHp) - amount);
+      this.health.set(target.id, left);
+      const from = bodyOf(shooter);
+      strikeHunter(bodyOf(target), amount, { pos: from.pos, spec: { name: cleanName(shooter.name) } });
+      if (left > 0) return;
+
+      bodyOf(target).down = true; // mijozning o'z xabari kelguncha ham qayta otilmasin
+      this.downAt.set(target.id, elapsed);
+      this.downs.set(shooter.id, (this.downs.get(shooter.id) ?? 0) + 1);
+      const message = { t: 'downed', by: shooter.name, who: target.name };
+      broadcast(message);
+      CLIENT_MESSAGES.downed(message);
+      this.addScore(teamOf(shooter.id), BATTLE.downPoints);
+    },
+    tick() {
+      for (const [id, at] of this.downAt) {
+        if (elapsed - at < BATTLE.respawnTime) continue;
+        this.downAt.delete(id);
+        this.health.set(id, CONFIG.player.maxHp);
+        this.safeUntil.set(id, elapsed + BATTLE.safeTime);
+        const member = network.roster.get(id);
+        if (member) respawnMember(member, this.campSpot(teamOf(id)));
+      }
+    },
+    onKill(animal, moment, points) {
+      this.addScore(teamOf(moment.shooter?.id ?? HOST_ID), points);
+    },
+    botPlan(bot) {
+      const enemy = nearestEnemy(bot, 170);
+      if (!enemy) return { moveTo: this.middle }; // raqib ko'rinmasa, o'rmon o'rtasiga boradi
+      const distance = bot.distanceTo(enemy.pos);
+      // Daraxt to'sib turgan bo'lsa, joyida turib qolmay yaqinlashadi
+      const blocked = isSightBlocked(enemy.pos, bot, distance);
+      return { enemy, moveTo: distance > 40 || (blocked && distance > 8) ? enemy.pos : null, sneak: distance < 70 };
+    },
+    downText() {
+      const left = Math.max(1, Math.ceil(BATTLE.respawnTime - (elapsed - (player.downAt ?? elapsed))));
+      return `Yiqildingiz. ${left} soniyadan keyin lagerda turasiz.`;
+    },
+    status() {
+      const board = Object.entries(this.score)
+        .map(([id, score]) => ({ id, score, name: TEAMS[id].name, color: TEAMS[id].color }))
+        .sort((a, b) => b.score - a.score);
+      const players = [...network.roster.values()]
+        .map(({ id, name }) => ({ id, name, team: teamOf(id), downs: this.downs.get(id) ?? 0 }));
+      return { board, players, camps: this.camps, text: 'Jamoa jangi' };
+    },
+  },
 ];
 
 /* --------------------------------------------------------------------------
@@ -411,30 +525,40 @@ function createCamp() {
 const campModel = createCamp();
 
 /** Musobaqa jadvali: o'rin, ism, ochko. */
+/** Jadvaldagi qaysi qator meniki: musobaqada o'zim, jamoa jangida jamoam. */
+const myBoardId = () => (game.activeMission?.teams ? teamOf(myRosterId()) : network.myId);
+
 function renderBoard(board) {
   ui.board.hidden = !board;
   if (!board) return;
-  ui.board.replaceChildren(...board.map(({ id, name, score }, index) => {
+  ui.board.replaceChildren(...board.map(({ id, name, score, color }, index) => {
     const row = document.createElement('li');
-    row.classList.toggle('mine', id === network.myId);
+    row.classList.toggle('mine', id === myBoardId());
     row.textContent = `${index + 1}. ${cleanName(name)}: ${score}`;
+    if (color) row.style.color = color;
     return row;
   }));
-  const mine = board.find(({ id }) => id === network.myId);
+  const mine = board.find(({ id }) => id === myBoardId());
   if (mine) ui.score.textContent = mine.score;
 }
 
-/** Musobaqa natijasi: g'olibga to'liq mukofot, qolganlarga yarmi. */
+/** Musobaqa natijasi: g'olibga to'liq mukofot, qolganlarga yarmi. Durangda hammaga yarmi. */
 function settleVersus() {
   const mission = game.activeMission;
-  const board = game.teamStatus?.board ?? [];
-  const place = board.findIndex(({ id }) => id === network.myId) + 1;
-  const first = place === 1 && board[0].score > 0;
+  const { board = [], players = [] } = game.teamStatus ?? {};
+  const place = board.findIndex(({ id }) => id === myBoardId()) + 1;
+  const tie = board.length > 1 && board[0].score === board[1].score;
+  const first = place === 1 && board[0].score > 0 && !tie;
   profile.teamMissions[mission.id] = Math.max(profile.teamMissions[mission.id] ?? 0, first ? 3 : 1);
+  let summary = first ? 'G‘olib siz!' : `Siz ${place}-o‘rindasiz`;
+  if (mission.teams) summary = tie ? 'Durang' : first ? 'Jamoangiz yutdi!' : 'Jamoangiz yutqazdi';
   return {
     coins: Math.round(mission.reward * (first ? 1 : 0.5)),
-    summary: first ? 'G‘olib siz!' : `Siz ${place}-o‘rindasiz`,
-    rows: board.map(({ name, score }, index) => [`${index + 1}. ${cleanName(name)}`, `${score} ochko`]),
+    summary,
+    rows: [
+      ...board.map(({ name, score }, index) => [`${index + 1}. ${cleanName(name)}`, `${score} ochko`]),
+      ...players.map(({ name, team, downs }) => [`${cleanName(name)} · ${TEAMS[team]?.name ?? ''}`, `${downs} ta yiqitdi`]),
+    ],
   };
 }
 
@@ -449,6 +573,7 @@ function applyRole(role) {
 /** Jamoa holatini ekranga chiqaradi. status null bo'lsa, hammasi yashiriladi. */
 function renderTeamStatus(status) {
   game.teamStatus = status;
+  if (network.isClient) network.roles = status?.roles ?? {}; // jamoani bilish uchun
   ui.teamLine.textContent = status?.text ?? '';
   game.marks = status?.marks ?? [];
 
@@ -459,6 +584,8 @@ function renderTeamStatus(status) {
     zoneWall.scale.set(radius, 1, radius);
   }
   campModel.visible = Boolean(status?.camp);
+  showTeamCamps(status?.camps);
+  paintTeams();
   renderBoard(status?.board);
   if (isNumber(status?.boss)) animals[status.boss]?.root.scale.setScalar(1.7);
   applyRole(status?.roles?.[network.myId]);
@@ -474,13 +601,23 @@ function collectTeamStatus() {
 /** Xost: rollarni navbat bilan taqsimlaydi. */
 function assignRoles(mission) {
   const members = [...network.roster.values()];
+  const picked = mission?.pickRoles?.(members);
   network.roles = {};
   network.spawns = {};
   members.forEach((member, index) => {
-    const role = mission?.roles?.[index % mission.roles.length];
+    const role = picked ? picked[member.id] : mission?.roles?.[index % mission.roles.length];
     if (role) network.roles[member.id] = role;
     network.spawns[member.id] = mission?.spawnFor?.(role, index) ?? teamSpawnPoint(index);
   });
+}
+
+/** Xost: raund ketayotganda kirgan do'stga rol va boshlang'ich joy. Bo'shagan bot o'rni bo'lsa, o'shani oladi. */
+function assignLateRole(member, freedRole) {
+  const mission = game.activeMission;
+  const index = network.roster.size - 1;
+  const role = freedRole ?? mission?.lateRole?.() ?? mission?.roles?.[index % mission.roles.length];
+  if (role) network.roles[member.id] = role;
+  network.spawns[member.id] = mission?.spawnFor?.(role, index) ?? teamSpawnPoint(index);
 }
 
 /** Xost: jamoa missiyasini tanlash oynasi. */

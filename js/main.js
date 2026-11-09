@@ -53,6 +53,8 @@ function simulate(realDt) {
     if (!ui.mapScreen.hidden) renderMap();
     if (IS_TOUCH_DEVICE) updateTouchButtons();
     if (!network.isClient) updateRound(realDt);
+    updateDayCycle();
+    updateCampfires(dt);
   } else if (game.state !== 'paused') {
     updateIdleCamera(dt);
   }
@@ -69,7 +71,7 @@ function simulate(realDt) {
   updateRain(dt);
   updateStorm(dt);
   updateHeadlamp();
-  updateSun(player.pos);
+  updateSun(camera.position); // kuzatish paytida soya sherik atrofida bo'lsin
   updateDetailTiles();
   skyDome.position.copy(camera.position);
   skyMaterial.uniforms.time.value = elapsed;

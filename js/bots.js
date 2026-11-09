@@ -53,6 +53,7 @@ class BotHunter extends RemoteHunter {
     this.downClock = 0;
     this.speed = 0;
     showPopup(`${this.name} yiqildi`);
+    deliverSay(network.roster.get(this.id), QUICK_CHAT.findIndex(({ text }) => text === 'Yordam!'));
     checkTeamWipe();
   }
 
@@ -87,7 +88,8 @@ class BotHunter extends RemoteHunter {
 
   /** Nima qilishni tanlaydi: sherikni qutqarish, missiya vazifasi yoki oddiy ov. */
   choosePlan() {
-    const fallen = hunters.find((hunter) => hunter !== this && hunter.down && !hunter.immobile && this.distanceTo(hunter.pos) < 50);
+    const fallen = !game.activeMission?.noRevive && hunters.find((hunter) => hunter !== this && hunter.down && !hunter.immobile
+      && sameTeam(this.id, hunterId(hunter)) && this.distanceTo(hunter.pos) < 50);
     if (fallen) return { moveTo: fallen.pos, revive: fallen };
 
     // Hujum qilayotgan yirtqich har qanday vazifadan muhim
@@ -155,25 +157,48 @@ class BotHunter extends RemoteHunter {
     this.stuckFrom = { x: this.target.x, z: this.target.z };
   }
 
-  /** Nishon ko'rinsa, otadi. Masofa uzoq bo'lsa, ko'proq xato qiladi. */
-  tryShoot(animal, dt, sure) {
-    this.shotClock -= dt;
-    if (!animal?.alive || this.shotClock > 0) return;
-    const distance = this.distanceTo(animal.pos);
-    if (distance > BOT.range || isSightBlocked(animal.pos, this, distance)) return;
+  /** Nishon ko'rinadimi va otishga tayyormi. Tayyor bo'lsa, masofani qaytaradi. */
+  readyToShoot(point) {
+    if (this.shotClock > 0) return null;
+    const distance = this.distanceTo(point);
+    if (distance > BOT.range || isSightBlocked(point, this, distance)) return null;
+    return distance;
+  }
 
+  /** Nishonga burilib o'q uzadi, ovoz hammaga eshitiladi. Qobiliyat koeffitsientini qaytaradi. */
+  fireAt(point) {
     const skill = clamp(conditions.damage, 0.7, 1.25);
     this.shotClock = randRange(...BOT.shootEvery) / skill;
-    this.targetYaw = Math.atan2(this.target.x - animal.pos.x, this.target.z - animal.pos.z);
-
+    this.targetYaw = Math.atan2(this.target.x - point.x, this.target.z - point.z);
     const { x, z } = this.target;
     sound.distantShot({ x, z });
     broadcast({ t: 'bang', id: this.id, x, z });
     alarmAnimals(x, z, BOT.alarmRadius);
+    return skill;
+  }
 
+  /** Nishon ko'rinsa, otadi. Masofa uzoq bo'lsa, ko'proq xato qiladi. */
+  tryShoot(animal, sure) {
+    if (!animal?.alive) return;
+    const distance = this.readyToShoot(animal.pos);
+    if (distance === null) return;
+    const skill = this.fireAt(animal.pos);
     const chance = sure ? 1 : lerp(0.62, 0.22, distance / BOT.range) * skill;
     if (Math.random() < chance) {
       applyHit(animal, Math.random() < 0.15 ? 'head' : 'body', 1, network.roster.get(this.id));
+    }
+  }
+
+  /** Jamoa jangi: raqib ovchiga otadi. Zararni xost battleHit orqali beradi. */
+  tryShootHunter(enemy) {
+    if (enemy.down) return;
+    const distance = this.readyToShoot(enemy.pos);
+    if (distance === null) return;
+    const skill = this.fireAt(enemy.pos);
+    const [near, far] = BATTLE.botAccuracy;
+    const chance = lerp(near, far, distance / BOT.range) * skill * (enemy.crouch > 0.5 ? 0.8 : 1);
+    if (Math.random() < chance) {
+      battleHit(network.roster.get(this.id), network.roster.get(hunterId(enemy)), Math.random() < 0.12 ? 'head' : 'body', 1);
     }
   }
 
@@ -189,7 +214,8 @@ class BotHunter extends RemoteHunter {
     const goal = this.detour ?? plan.moveTo;
 
     // Nishonga yaqinlashganda egilib, sekin yuradi
-    const close = plan.sneak || (plan.target && this.distanceTo(plan.target.pos) < BOT.sneakRange);
+    const focus = plan.target ?? plan.enemy;
+    const close = plan.sneak || (focus && this.distanceTo(focus.pos) < BOT.sneakRange);
     this.crouchGoal = close ? 1 : 0;
     if (goal) this.walk(goal, close ? BOT.sneakSpeed : BOT.walkSpeed, dt);
     else this.speed = 0;
@@ -209,11 +235,14 @@ class BotHunter extends RemoteHunter {
     }
 
     if (plan.sure) this.shotClock = Math.min(this.shotClock, 0.5);
-    this.tryShoot(plan.target, dt, plan.sure);
+    this.shotClock -= dt;
+    if (plan.enemy) this.tryShootHunter(plan.enemy);
+    else this.tryShoot(plan.target, plan.sure);
   }
 
   /** Yordam kelmasa, bot biroz yotib o'zi turadi: missiya bir botga qarab qolmaydi. */
   waitForHelp(dt) {
+    if (game.activeMission?.noRevive) return; // lagerda turishni missiya hal qiladi
     this.downClock += dt;
     if (this.downClock >= BOT.selfRevive) this.revive();
   }

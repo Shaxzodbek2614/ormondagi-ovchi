@@ -385,6 +385,15 @@ class Animal {
     const sensed = distance < this.senseDistance(dt, distance);
     this.stateTime -= dt;
 
+    // Yirtqich gulxan yonidagi ovchiga yaqinlashmaydi, burilib ketadi
+    if (spec.aggressive && !prey.immobile && FIRE_SHY_STATES.includes(this.state)) {
+      const fire = campfireNear(prey.pos, CAMPFIRE.safeRadius);
+      if (fire) {
+        this.beginFlee({ pos: fire.mesh.position });
+        return 0;
+      }
+    }
+
     switch (this.state) {
       case 'graze':
         this.headGoal = spec.grazeAngle;
@@ -517,7 +526,7 @@ class Animal {
 
   pickWanderTarget() {
     const leader = this.group && groupLeader(this.group);
-    const drinkingSpot = this.spec.drinks && Math.random() < 0.3 ? this.pickDrinkingSpot() : null;
+    const drinkingSpot = this.spec.drinks && Math.random() < conditions.drinkChance ? this.pickDrinkingSpot() : null;
     const angle = Math.random() * TAU, distance = randRange(8, 26);
     let x = this.pos.x + Math.cos(angle) * distance, z = this.pos.z + Math.sin(angle) * distance;
     if (leader && leader !== this) {

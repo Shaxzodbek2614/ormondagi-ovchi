@@ -57,14 +57,18 @@ function updatePlayer(dt) {
 
   player.yaw -= input.edgeTurn * 1.8 * dt;
 
-  // Yiqilgan o'yinchi yura olmaydi, faqat atrofga qaraydi
+  // Yiqilgan o'yinchi yura olmaydi: tirik sherigini kuzatadi yoki atrofga qaraydi
   if (player.down) {
     player.noise = 0;
     player.pos.y = terrainHeight(player.pos.x, player.pos.z) + 0.4;
+    updateDownBanner();
+    if (followSpectateTarget(dt)) return;
     camera.position.copy(player.pos);
     camera.rotation.set(player.pitch, player.yaw, 0.4);
     return;
   }
+
+  if (spectate.target) updateSpectateTarget(); // turg'izilgach, o'z ko'zimizga qaytamiz
 
   const forward = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - input.stickY;
   const strafe = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + input.stickX;

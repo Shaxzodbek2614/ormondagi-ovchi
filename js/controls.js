@@ -45,6 +45,10 @@ document.addEventListener('mousemove', (event) => {
 
 document.addEventListener('mousedown', (event) => {
   if (!canControl()) return;
+  if (player.down && event.button === 0) {
+    nextSpectateTarget();
+    return;
+  }
   if (event.button === 0) input.fire = true;
   if (event.button === 2) input.aiming = true;
 });
@@ -69,13 +73,18 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'KeyT') pressFishKey();
   if (event.code === 'KeyY') useTower();
   if (event.code === 'KeyU') useTrap();
+  if (event.code === 'KeyL') useCampfire();
   if (event.code === 'KeyK' && dog.active) dog.staying = !dog.staying;
   if (event.code === 'KeyG' && game.mode === 'team') placePing();
+  if (event.code === 'KeyV') toggleChatMenu();
   const digit = /^Digit([1-7])$/.exec(event.code);
-  if (digit) trySwitchWeapon(WEAPON_ORDER[Number(digit[1]) - 1]);
+  // Xabarlar ro'yxati ochiq bo'lsa, raqam gapni tanlaydi
+  if (digit && chat.menuOpen) sayPhrase(Number(digit[1]) - 1);
+  else if (digit) trySwitchWeapon(WEAPON_ORDER[Number(digit[1]) - 1]);
   if (event.code === 'KeyQ') cycleWeapon();
   if (event.code === 'KeyB') startScoping();
-  if (event.code === 'Escape' && pointer.free) pauseRound(); // qulflangan rejimda buni brauzer qiladi
+  if (event.code === 'Escape' && chat.menuOpen) setChatMenu(false);
+  else if (event.code === 'Escape' && pointer.free) pauseRound(); // qulflangan rejimda buni brauzer qiladi
 });
 document.addEventListener('keyup', (event) => {
   input.keys[event.code] = false;
@@ -107,7 +116,10 @@ const TOUCH_BUTTONS = [
   { id: 'fish', label: 'Baliq', press: () => { input.keys.KeyT = true; pressFishKey(); }, release: () => { input.keys.KeyT = false; }, isAvailable: () => fishing.state !== 'idle' || Boolean(fishingSpot()) },
   { id: 'tower', label: 'Minora', press: useTower, isAvailable: () => isEquipped('tower') },
   { id: 'trap', label: 'Tuzoq', press: useTrap, isAvailable: () => isEquipped('trap') },
+  { id: 'campfire', label: 'Gulxan', press: useCampfire, isAvailable: () => isEquipped('campfire') },
   { id: 'ping', label: 'Belgi', press: () => placePing(), isAvailable: () => game.mode === 'team' },
+  { id: 'chat', label: 'Xabar', press: toggleChatMenu, isOn: () => chat.menuOpen, isAvailable: () => game.mode === 'team' },
+  { id: 'watch', label: 'Kuzatish', press: nextSpectateTarget, isAvailable: () => player.down && spectateTargets().length > 1 },
   { id: 'revive', label: 'Turg‘izish', press: () => { input.keys.KeyE = true; }, release: () => { input.keys.KeyE = false; }, isAvailable: () => Boolean(game.reviveTarget) },
   { id: 'lamp', label: 'Chiroq', press: () => { player.lampOn = !player.lampOn; }, isOn: () => player.lampOn, isAvailable: () => conditions.night },
   { id: 'pause', label: 'II', press: pauseRound },
@@ -339,6 +351,10 @@ const SHOP_ITEMS = [
     give: () => { profile.traps += 3; }, note: 'U tugmasi bilan qo‘yiladi. Bosgan hayvon 8 soniya qimirlay olmaydi.',
   },
   {
+    id: 'campfire', name: 'Gulxan (2 ta)', price: 50, repeatable: true, count: () => profile.campfires,
+    give: () => { profile.campfires += 2; }, note: 'L tugmasi bilan yoqiladi, 2 daqiqa yonadi. Yirtqich gulxan yonidagi ovchiga hujum qilmaydi, yonida jon tiklanadi.',
+  },
+  {
     id: 'medkit', name: 'Dori', price: 30, repeatable: true, count: () => profile.medkits,
     give: () => { profile.medkits++; }, note: `H tugmasi: ${CONFIG.medkitHeal} jon tiklaydi.`,
   },
@@ -428,6 +444,7 @@ const GEAR_ITEMS = [
   { id: 'dog', name: 'Ov iti' },
   { id: 'tower', name: 'Minora' },
   { id: 'trap', name: 'Tuzoq' },
+  { id: 'campfire', name: 'Gulxan' },
 ];
 
 function renderLoadouts() {

@@ -6,7 +6,7 @@
    natijani oladi. Barcha xabarlar xost orqali o'tadi (PeerJS / WebRTC).
    ========================================================================== */
 
-const PROTOCOL_VERSION = 4;
+const PROTOCOL_VERSION = 5;
 const PEER_PREFIX = 'ormondagi-ovchi-';
 const PEERJS_URL = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
 const TEAM_SITE_URL = 'https://shaxzodbek2614.github.io/ormondagi-ovchi/';
@@ -26,6 +26,8 @@ const network = {
   roster: new Map(),  // id -> { id, name, colorIndex, connection, hunter, lastSeen }
   nextClientNumber: 1,
   sendClock: 0,
+  roles: {},          // id -> rol: jamoa missiyasida
+  spawns: {},         // id -> boshlang'ich joy
 };
 
 const HOST_MARK_KEY = 'ormondagi-ovchi-xost';
@@ -177,10 +179,13 @@ function welcomeClient(connection, hello) {
   };
   if (hello.version !== PROTOCOL_VERSION) return refuse('O‘yin versiyangiz boshqa. Sahifani yangilang.');
   if (hello.checksum !== worldChecksum()) return refuse('O‘rmon mos kelmadi. Sahifani yangilab, qayta kiring.');
-  // Xona to'lgan bo'lsa, bot haqiqiy do'stga joy bo'shatadi
+  // Xona to'lgan bo'lsa, bot haqiqiy do'stga joy bo'shatadi, raund ketayotgan bo'lsa roli bilan
+  let freedRole;
   if (network.roster.size >= MAX_PLAYERS) {
     const bot = [...network.roster.values()].find((member) => member.isBot);
     if (!bot) return refuse(`Xona to‘lgan: ${MAX_PLAYERS} kishidan ko‘p bo‘lmaydi.`);
+    freedRole = network.roles?.[bot.id];
+    delete network.roles?.[bot.id];
     removeBot(bot);
   }
 
@@ -194,6 +199,7 @@ function welcomeClient(connection, hello) {
   broadcast({ t: 'roster', roster: rosterList() }, id);
   renderLobby();
   if (game.mode === 'team' && game.state !== 'menu' && game.state !== 'over') {
+    assignLateRole(member, freedRole);
     addTeamMate(member);
     sendTo(connection, buildStartMessage());
   }
@@ -205,6 +211,7 @@ function dropClient(connection) {
   if (!member) return;
   member.hunter?.remove();
   network.roster.delete(member.id);
+  delete network.roles[member.id]; // kech kirgan do'st bo'sh jamoaga tushsin
   broadcast({ t: 'left', id: member.id, name: member.name, roster: rosterList() });
   showPopup(`${member.name} chiqib ketdi`);
   renderLobby();
