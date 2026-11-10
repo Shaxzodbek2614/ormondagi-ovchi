@@ -188,7 +188,13 @@ function addSeasonShader(shader) {
         * smoothstep(0.1, 0.17, diffuseColor.g);
       vec3 fallen = mix(vec3(0.82, 0.4, 0.07), vec3(0.62, 0.13, 0.04), clamp(diffuseColor.g * 5.0 - 0.4, 0.0, 1.0));
       diffuseColor.rgb = mix(diffuseColor.rgb, fallen * (0.4 + diffuseColor.g * 1.4), autumnCover * leafy);
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.93, 0.98), snowCover * smoothstep(0.15, 0.62, vUpness));`);
+      // Barg va igna ikki tomonlama: qor faqat ustki tomonida yotadi
+      #ifdef DOUBLE_SIDED
+        float snowSide = gl_FrontFacing ? vUpness : -vUpness;
+      #else
+        float snowSide = vUpness;
+      #endif
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.93, 0.98), snowCover * smoothstep(0.15, 0.62, snowSide));`);
 }
 
 function applyConditions(next) {

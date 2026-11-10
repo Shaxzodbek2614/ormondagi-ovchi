@@ -6,7 +6,7 @@
    natijani oladi. Barcha xabarlar xost orqali o'tadi (PeerJS / WebRTC).
    ========================================================================== */
 
-const PROTOCOL_VERSION = 6;
+const PROTOCOL_VERSION = 7;
 const PEER_PREFIX = 'ormondagi-ovchi-';
 const PEERJS_URL = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
 const TEAM_SITE_URL = 'https://shaxzodbek2614.github.io/ormondagi-ovchi/';

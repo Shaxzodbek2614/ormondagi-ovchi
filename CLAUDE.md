@@ -44,6 +44,9 @@ Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik
 - **Yangi hayvonlar** `SPECIES` oxirida: eski raqamlar o‘zgarmasin. Qirg‘ovul `GroundBird extends Waterfowl` (`flightBase`, `land`), tuzoq qushga ishlamaydi. Silovsin `ambush` bilan `lurk` holatida poylaydi. Yangi holat qo‘shsangiz, `ANIMAL_STATES` oxiriga yozing, aks holda mijozda o‘tlayotgandek ko‘rinadi.
 - **Qayiq:** `player.inBoat`. Holat qatorining 9-maydoni, 4 joy birga o‘zgaradi: `localPlayerState`, xostdagi `me` uzunligi, `BotHunter.stateArray`, `RemoteHunter.applyState`. Ko‘prikchalarni `createDocks()` dunyo qurilgach tasodifsiz hisoblaydi.
 - **Zona janggi:** `versus: true` missiya. `goals` bo‘sh, vaqt tugashi g‘alaba hisoblanadi, ochkoni `board` ko‘rsatadi, `settleVersus` g‘olibga to‘liq, qolganlarga yarim mukofot beradi.
+- **Ko‘rinish (shakllar):** `shapes.js`da `surface`, `tube`, `lump`, `mergeGroups` va kod bilan chizilgan teksturalar (`barkMaterial`, `leafMaterial`, `needleMaterial`, `stoneMaterial`). Bezak tasodifi `artRandom`/`artRange` va `valueNoise`dan olinadi, `Math.random`dan emas: aks holda dunyo urug‘i ketma-ketligi siljiydi va `PROTOCOL_VERSION`ni oshirish kerak bo‘ladi.
+- **Daraxt LOD:** har 60 metrli katakda yaqin va uzoq `InstancedMesh` (`lodTiles`, `LOD_DISTANCE`), `updateDetailTiles()` almashtiradi. Ko‘rinishni o‘zgartirganda `obstacleGrid`, `coverGrid`, tana radiusi va joylash tsikllariga tegmang.
+- **Hayvon modeli:** `loft`ga `ridge`, `stripe`, `paint` qo‘shilgan (standart qiymatda ovchi avatari o‘zgarmaydi). Modelda bo‘g‘in nuqtalari, oyoq uchi balandligi va `hit*` qutilari o‘yin mantig‘i: ko‘rinishni yaxshilaganda ularni saqlang. Bug‘u, tog‘ echkisi va quyon yangi shaklda, qolgan hayvonlar va qurollar hali eski.
 
 ## Sinash
 
@@ -53,6 +56,8 @@ Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik
 - Panel yashirin bo‘lsa, `requestAnimationFrame` ishlamaydi. Uchburchak sonini `renderer.render(scene, camera)` ni qo‘lda chaqirib, `renderer.info`dan o‘qing.
 - Pointer lock panelda ishlamaydi, o‘yin erkin sichqoncha rejimiga o‘tadi. `document.hidden` false bo‘lsa ham panel yashirin bo‘lishi mumkin: FPS o‘lchovlariga ishonmang.
 - Server yo‘lini majburlash: manzilga `?relay=1` qo‘shing. Ikki tab bilan bitta kompyuterda WebRTC doim ishlaydi, haqiqiy tarmoqni aks ettirmaydi.
+- Menyu holatida ham asosiy sikl ishlaydi: kamera va hayvonlarni o‘zi boshqaradi. Skrinshot uchun `game.state = 'paused'` qiling, kamera va hayvon `root`ini qo‘ying, 1 soniya kuting.
+- Manzilda `#xona-...` bo‘lsa `network.active` yonadi va `fire()` zarbani xostga yuboradi: o‘q tegishini yakka rejimda, hashsiz manzilda sinang. Nishonga olish uchun `animal.hitBoxes` dan foydalaning.
 - Botlar va missiyalarni tez sinash: `simulate(.05)`ni tsiklda chaqiring. Odam o‘yinchi turib qolsa, hayvon uni yiqitadi: `player.hp`ni tiklab turing, aks holda raund vaqtidan oldin tugaydi.
 
 ## Joylash
@@ -68,3 +73,4 @@ Asosiy fayllar: `config.js` (urug‘, CONFIG, profil), `world-map.js` (balandlik
 - Hayvonni joylab darhol `fire()` qilsangiz, nishon qutisining matritsasi hali yangilanmagan bo‘ladi va o‘q tegmaydi. Bir kadr kuting.
 - Botlar daraxt orqasidagi nishonga otmaydi: `botPlan` to‘siq bo‘lsa yaqinlashishni buyurmasa, ikki bot bir-biriga qarab abadiy turib qoladi.
 - Sinovlarda hayvonlarni bir zumda o‘ldirish vaqtga bog‘liq xatolarni yashiradi (to‘lqin xatosi shunday o‘tib ketgan). Mantiqni real vaqt oralig‘i bilan ham sinang.
+- Fayllar umumiy global nom ishlatadi: `shapes.js`ga `blob` qo‘shilganda `animal-models.js`dagi `blob` bilan to‘qnashib, butun o‘yin yuklanmay qolgan. Yangi nom qo‘shishdan oldin `grep` qiling.

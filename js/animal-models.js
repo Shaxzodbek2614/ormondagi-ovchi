@@ -5,26 +5,31 @@
    Tana qutilardan emas, yumaloq kesimlardan "cho'zib" yasaladi (loft). Har bir model
    oldinga (+Z) qaraydi, oyoqlari y=0 da turadi. Bo'g'inlar alohida qismlar: ularni
    aylantirib animatsiya qilamiz.
+   Ko'rinish dunyo urug'iga ta'sir qilmaydi: tasodif artRandom'dan olinadi.
    ========================================================================== */
 
-/** Hayvon junini eslatuvchi mayda tolali tekstura. */
+/** Hayvon junini eslatuvchi mayda tolali tekstura: tolalar tana bo'ylab yotadi. */
 function createFurTexture() {
   const size = 256;
   const paper = document.createElement('canvas');
   paper.width = paper.height = size;
   const pen = paper.getContext('2d');
-  pen.fillStyle = '#e6e6e6';
+  pen.fillStyle = '#dedede';
   pen.fillRect(0, 0, size, size);
-  for (let i = 0; i < 5200; i++) {
-    const shade = Math.floor(randRange(165, 255));
-    pen.strokeStyle = `rgba(${shade},${shade},${shade},.5)`;
-    pen.lineWidth = randRange(0.5, 1.4);
-    const x = Math.random() * size, y = Math.random() * size;
-    pen.beginPath();
-    pen.moveTo(x, y);
-    pen.lineTo(x + randRange(-2, 2), y + randRange(4, 9));
-    pen.stroke();
-  }
+  const strand = (shade, alpha, width, length) => {
+    pen.strokeStyle = `rgba(${shade},${shade},${shade},${alpha})`;
+    pen.lineWidth = width;
+    const x = artRandom() * size, y = artRandom() * size, lean = artRange(-2.5, 2.5);
+    // Chetdan chiqqan tola qarama-qarshi chetdan davom etadi: tekstura choksiz takrorlanadi
+    for (const [ox, oy] of [[0, 0], [0, -size], [-size, 0], [size, 0]]) {
+      pen.beginPath();
+      pen.moveTo(x + ox, y + oy);
+      pen.quadraticCurveTo(x + ox + lean, y + oy + length * 0.5, x + ox + lean * 0.6, y + oy + length);
+      pen.stroke();
+    }
+  };
+  for (let i = 0; i < 7000; i++) strand(Math.floor(artRange(150, 255)), 0.45, artRange(0.5, 1.3), artRange(5, 12));
+  for (let i = 0; i < 900; i++) strand(Math.floor(artRange(90, 140)), 0.35, artRange(0.5, 1), artRange(7, 15)); // to'q qil
   const texture = new THREE.CanvasTexture(paper);
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -33,6 +38,14 @@ function createFurTexture() {
 }
 
 const furMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, map: createFurTexture() });
+// Jun chetida yorug'lik sochiladi: tana silliq plastmassadek emas, momiqdek ko'rinadi
+furMaterial.onBeforeCompile = (shader) => {
+  shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
+    float fuzz = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 2.5);
+    outgoingLight *= 1.0 + fuzz * 0.6;
+    #include <opaque_fragment>`);
+};
+furMaterial.customProgramCacheKey = () => 'fur';
 
 const catmullRom = (a, b, c, d, t) => 0.5 * (
   2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (3 * b - a - 3 * c + d) * t * t * t
@@ -41,11 +54,14 @@ const catmullRom = (a, b, c, d, t) => 0.5 * (
 /**
  * Yumaloq kesimlar orqali silliq tana yasaydi.
  * @param rings [y, z, kenglik, balandlik] ko'rinishidagi kesimlar (yarim o'lchamlarda)
- * @param options.top   orqa tomon rangi
+ * @param options.top    orqa tomon rangi
  * @param options.bottom qorin tomon rangi (berilmasa top bilan bir xil)
- * @param options.tip   [rang, boshlanishi]: uchiga yaqin rang (tumshuq, tuyoq, dum uchi)
+ * @param options.tip    [rang, boshlanishi]: uchiga yaqin rang (tumshuq, tuyoq, dum uchi)
+ * @param options.ridge  kesim tuxumsimon bo'ladi: umurtqa tor, qorin keng (0 = ellips)
+ * @param options.stripe [rang, kenglik, kuch]: umurtqa bo'ylab to'q yo'l
+ * @param options.paint  (rang, { x, y, z, side, progress }) => rangni joyida o'zgartiradi (dog', oq dumg'aza)
  */
-function loft(rings, { top, bottom = top, tip, sides = 12, steps = 4, mottle = 0.05 }) {
+function loft(rings, { top, bottom = top, tip, sides = 12, steps = 4, mottle = 0.05, ridge = 0, stripe, paint } = {}) {
   // Kesimlar orasini silliq egri chiziq bilan to'ldiramiz
   const path = [];
   const at = (index) => rings[clamp(index, 0, rings.length - 1)];
@@ -60,14 +76,18 @@ function loft(rings, { top, bottom = top, tip, sides = 12, steps = 4, mottle = 0
   const positions = [], colors = [], uvs = [], indices = [];
   const topColor = new THREE.Color(top), bottomColor = new THREE.Color(bottom);
   const tipColor = tip && new THREE.Color(tip[0]);
+  const stripeColor = stripe && new THREE.Color(stripe[0]);
   const color = new THREE.Color();
 
   const addVertex = (x, y, z, side, progress) => {
     positions.push(x, y, z);
     uvs.push((x + y) * 2.2, (z + y * 0.5) * 2.2);
     color.lerpColors(bottomColor, topColor, smoothstep(side, -0.55, 0.4));
+    if (stripe) color.lerp(stripeColor, smoothstep(side, 1 - stripe[1], 1) * (stripe[2] ?? 0.6));
     if (tip) color.lerp(tipColor, smoothstep(progress, tip[1], tip[1] + 0.07));
-    const speck = 1 + (Math.random() - 0.5) * 2 * mottle;
+    if (paint) paint(color, { x, y, z, side, progress });
+    // Mayda dog' va yirikroq to'lqin: jun bir tekis bo'yalgandek ko'rinmaydi
+    const speck = 1 + (artRandom() - 0.5) * 2 * mottle + (valueNoise(x * 9 + y * 7, z * 9 - y * 5) - 0.5) * 2 * mottle;
     colors.push(color.r * speck, color.g * speck, color.b * speck);
   };
 
@@ -81,7 +101,7 @@ function loft(rings, { top, bottom = top, tip, sides = 12, steps = 4, mottle = 0
     for (let i = 0; i < sides; i++) {
       const angle = (i / sides) * TAU;
       const side = Math.sin(angle);
-      addVertex(Math.cos(angle) * width, y + normalY * side * height, z + normalZ * side * height, side, ringIndex / (path.length - 1));
+      addVertex(Math.cos(angle) * width * (1 - ridge * side), y + normalY * side * height, z + normalZ * side * height, side, ringIndex / (path.length - 1));
     }
   });
 
@@ -123,11 +143,15 @@ const limb = (rings, options) => loft(rings, { sides: 8, steps: 2, ...options })
 const blob = (radius, color, position, scale, rotation) =>
   painted(new THREE.SphereGeometry(radius, 10, 8), color, position, rotation, scale);
 
+/** Mayda detal uchun yengil shar: barmoq, burun teshigi, dog'. */
+const bead = (radius, color, position, scale, rotation) =>
+  painted(new THREE.SphereGeometry(radius, 6, 4), color, position, rotation, scale);
+
 /** Ikki ko'z: yaltirashi uchun ustiga kichkina oq nuqta qo'yiladi. */
 function eyes(x, y, z, radius, iris = '#120c08') {
   return [-1, 1].flatMap((side) => [
     blob(radius, iris, [side * x, y, z]),
-    blob(radius * 0.34, '#ffffff', [side * (x + radius * 0.6), y + radius * 0.5, z + radius * 0.5]),
+    bead(radius * 0.34, '#ffffff', [side * (x + radius * 0.6), y + radius * 0.5, z + radius * 0.5]),
   ]);
 }
 
@@ -141,57 +165,96 @@ function earPair(x, y, z, geometry, tiltX, tiltZ) {
   return { geometry, tiltX, tiltZ, pivots: [[-x, y, z], [x, y, z]] };
 }
 
+/** Barg shaklidagi quloq: orqasi jun, old tomoni och va biroz botiq. */
+function earLeaf(length, width, outer, inner, thick = 0.014) {
+  return loft([
+    [0, 0, width * 0.5, thick * 1.7], [length * 0.3, -thick, width, thick], [length * 0.65, -thick * 0.5, width * 0.8, thick],
+    [length * 0.9, 0.008, width * 0.36, thick * 0.7], [length, 0.014, 0.006, 0.004],
+  ], { top: outer, bottom: inner, sides: 8, steps: 2, mottle: 0.04 });
+}
+
+/** Panja: yostiqcha, oldinga chiqqan barmoqlar va (berilsa) tirnoqlar. */
+function paw(y, z, size, color, claw) {
+  const parts = [bead(size, color, [0, y, z], [1, 0.62, 1.25])];
+  for (const side of [-1, 0, 1]) {
+    const x = side * size * 0.58;
+    parts.push(bead(size * 0.46, color, [x, y - size * 0.14, z + size * 1.05], [1, 0.8, 1.35]));
+    if (claw) parts.push(cone(size * 0.13, size * 0.55, claw, [x, y - size * 0.28, z + size * 1.6], [1.9, 0, 0], 4));
+  }
+  return parts;
+}
+
 function deerModel({ back = '#8c5c36', belly = '#dcc6a2', dark = '#5e3c24', horns = false } = {}) {
-  const hoof = '#1d1612', bone = '#ddcfae', hornColor = '#5d4c38';
-  // Tog' echkisi shoxi: orqaga egilgan uch bo'lak
-  const horn = (side) => [
-    cylinder(0.026, 0.04, 0.24, hornColor, [side * 0.06, 0.2, -0.05], [-0.45, 0, -side * 0.15], 6),
-    cylinder(0.02, 0.03, 0.24, hornColor, [side * 0.08, 0.36, -0.17], [-1.1, 0, -side * 0.15], 6),
-    cylinder(0.012, 0.022, 0.22, hornColor, [side * 0.09, 0.41, -0.36], [-1.85, 0, -side * 0.12], 6),
-  ];
+  const hoof = '#1d1612', bone = '#d9c9a4', hornColor = '#5d4c38', nose = '#1c1412';
+  const spine = new THREE.Color(back).multiplyScalar(0.7), rump = new THREE.Color(belly).lerp(WHITE, 0.4);
+  const coat = { top: back, bottom: belly, stripe: [spine, 0.22, 0.55] };
+
+  // Tog' echkisi shoxi: orqaga qayrilgan, halqa-halqa yo'g'on yoy
+  const horn = (side) => {
+    const path = [], radii = [];
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10, angle = t * 2.1;
+      path.push([side * (0.055 + t * 0.06), 0.09 + Math.sin(angle) * 0.3, -0.03 - (1 - Math.cos(angle)) * 0.3]);
+      radii.push(lerp(0.042, 0.009, t) * (i % 2 ? 1.14 : 0.92));
+    }
+    return [tube(path, radii, hornColor, { sides: 6, colorAt: (i) => blend('#4a3c2c', '#8a7860', i / 10) })];
+  };
+  // Bug'u shoxi: asosiy tana va undan chiqqan uch o'siq
   const antler = (side) => (horns ? horn(side) : [
-    cylinder(0.017, 0.028, 0.32, bone, [side * 0.1, 0.25, -0.07], [-0.25, 0, -side * 0.4], 5),
-    cylinder(0.012, 0.018, 0.3, bone, [side * 0.2, 0.48, -0.05], [0.35, 0, -side * 0.25], 5),
-    cylinder(0.008, 0.015, 0.17, bone, [side * 0.13, 0.31, 0.05], [1, 0, -side * 0.2], 5),
-    cylinder(0.007, 0.013, 0.17, bone, [side * 0.26, 0.6, 0.06], [0.9, 0, -side * 0.4], 5),
+    tube([[side * 0.07, 0.12, -0.06], [side * 0.1, 0.22, -0.08], [side * 0.17, 0.37, -0.13], [side * 0.24, 0.52, -0.11], [side * 0.27, 0.65, -0.02], [side * 0.25, 0.74, 0.08]],
+      [0.024, 0.021, 0.018, 0.015, 0.012, 0.005], bone, { sides: 5 }),
+    tube([[side * 0.095, 0.21, -0.075], [side * 0.11, 0.28, 0.02], [side * 0.12, 0.37, 0.09]], [0.015, 0.012, 0.004], bone, { sides: 4 }),
+    tube([[side * 0.17, 0.37, -0.13], [side * 0.2, 0.47, -0.21], [side * 0.21, 0.57, -0.25]], [0.014, 0.011, 0.004], bone, { sides: 4 }),
+    tube([[side * 0.245, 0.53, -0.105], [side * 0.31, 0.61, -0.1], [side * 0.36, 0.7, -0.07]], [0.013, 0.01, 0.004], bone, { sides: 4 }),
   ]);
+  const ear = earLeaf(0.25, 0.062, dark, new THREE.Color(belly).lerp(new THREE.Color('#d9a59a'), 0.35));
+
   return {
     body: loft([
-      [1.2, -0.8, 0.03, 0.03], [1.2, -0.74, 0.15, 0.19], [1.19, -0.55, 0.235, 0.285], [1.15, -0.2, 0.25, 0.295],
-      [1.14, 0.15, 0.255, 0.31], [1.17, 0.42, 0.235, 0.315], [1.22, 0.62, 0.17, 0.255], [1.27, 0.74, 0.05, 0.08],
-    ], { top: back, bottom: belly }),
+      [1.2, -0.8, 0.03, 0.03], [1.2, -0.76, 0.13, 0.17], [1.195, -0.63, 0.215, 0.265], [1.18, -0.42, 0.25, 0.295],
+      [1.17, -0.16, 0.235, 0.27], [1.13, 0.1, 0.25, 0.3], [1.12, 0.34, 0.25, 0.33], [1.16, 0.52, 0.215, 0.31],
+      [1.23, 0.66, 0.14, 0.21], [1.28, 0.75, 0.04, 0.06],
+    ], {
+      ...coat, ridge: 0.12,
+      // Dumg'aza atrofi oq
+      paint: (color, p) => color.lerp(rump, smoothstep(-p.z, 0.6, 0.74) * smoothstep(-p.side, -0.7, 0.1) * 0.85),
+    }),
     neck: {
       pivot: [0, 1.28, 0.58],
       geometry: loft([
-        [-0.05, -0.06, 0.15, 0.2], [0.2, 0.1, 0.115, 0.15], [0.46, 0.23, 0.09, 0.105], [0.66, 0.32, 0.08, 0.085],
-      ], { top: back, bottom: belly, sides: 10, steps: 3 }),
+        [-0.1, -0.12, 0.17, 0.23], [-0.03, -0.05, 0.15, 0.2], [0.2, 0.1, 0.115, 0.15], [0.46, 0.23, 0.09, 0.105], [0.66, 0.32, 0.08, 0.085],
+      ], { ...coat, sides: 10, steps: 3 }),
     },
     head: {
       pivot: [0, 0.66, 0.32],
       geometry: merge(
         loft([
-          [0.02, -0.12, 0.05, 0.05], [0.04, -0.06, 0.095, 0.1], [0.03, 0.05, 0.1, 0.105],
-          [-0.01, 0.17, 0.072, 0.075], [-0.04, 0.28, 0.05, 0.052], [-0.05, 0.34, 0.03, 0.03],
-        ], { top: back, bottom: belly, tip: ['#1c1412', 0.88], sides: 10 }),
-        eyes(0.088, 0.065, 0.06, 0.024),
+          [0.02, -0.13, 0.04, 0.04], [0.045, -0.07, 0.092, 0.1], [0.05, 0.02, 0.104, 0.108], [0.025, 0.1, 0.092, 0.092],
+          [-0.005, 0.19, 0.066, 0.068], [-0.03, 0.28, 0.052, 0.054], [-0.04, 0.335, 0.046, 0.046], [-0.045, 0.356, 0.022, 0.024],
+        ], { top: back, bottom: belly, tip: [nose, 0.9], sides: 10 }),
+        eyes(0.089, 0.065, 0.06, 0.025),
+        bead(0.012, '#0c0908', [0.02, -0.03, 0.352]), bead(0.012, '#0c0908', [-0.02, -0.03, 0.352]),
+        horns ? [cone(0.028, 0.13, dark, [0, -0.1, 0.2], [Math.PI - 0.25, 0, 0], 5)] : [], // echki soqoli
         antler(-1), antler(1),
       ),
     },
-    ears: earPair(0.075, 0.1, -0.05, painted(new THREE.ConeGeometry(0.065, 0.24, 8), dark, [0, 0.11, 0], [0, 0, 0], [1, 1, 0.4]), -0.1, 1.05),
+    ears: earPair(0.075, 0.1, -0.05, ear, -0.1, 1.05),
     tail: {
       pivot: [0, 1.3, -0.76],
       rest: 0.2,
-      geometry: limb([[0, 0, 0.05, 0.03], [-0.1, -0.06, 0.06, 0.035], [-0.2, -0.08, 0.02, 0.02]], { top: dark, bottom: '#f3ecdf' }),
+      geometry: limb([[0.02, 0.02, 0.04, 0.03], [-0.05, -0.04, 0.062, 0.036], [-0.14, -0.08, 0.05, 0.03], [-0.21, -0.085, 0.015, 0.015]], { top: dark, bottom: '#f6f0e4' }),
     },
     legs: [
       ...legPair(0.13, 1.02, 0.46,
-        limb([[0.05, 0, 0.075, 0.085], [-0.2, 0, 0.06, 0.07], [-0.42, 0.01, 0.04, 0.045]], { top: back, bottom: dark }),
+        limb([[0.16, -0.02, 0.07, 0.12], [0.02, 0, 0.082, 0.1], [-0.16, 0.01, 0.062, 0.075], [-0.32, 0.015, 0.046, 0.052], [-0.42, 0.01, 0.04, 0.044]], { top: back, bottom: dark }),
         [0, -0.42, 0.01],
-        limb([[0, 0, 0.036, 0.04], [-0.25, -0.01, 0.026, 0.03], [-0.5, 0, 0.028, 0.034], [-0.56, 0.01, 0.034, 0.042]], { top: dark, tip: [hoof, 0.72] })),
+        limb([[0.01, 0, 0.04, 0.046], [-0.07, 0.004, 0.03, 0.034], [-0.3, -0.005, 0.024, 0.028], [-0.44, 0, 0.028, 0.033], [-0.5, 0.008, 0.024, 0.028], [-0.555, 0.018, 0.033, 0.042]],
+          { top: dark, tip: [hoof, 0.86] })),
       ...legPair(0.14, 1.08, -0.5,
-        limb([[0.08, 0, 0.1, 0.14], [-0.18, -0.03, 0.085, 0.12], [-0.4, -0.1, 0.045, 0.05]], { top: back, bottom: dark }),
+        limb([[0.17, 0.02, 0.085, 0.17], [0.04, 0.01, 0.105, 0.165], [-0.14, -0.02, 0.092, 0.135], [-0.3, -0.07, 0.062, 0.075], [-0.4, -0.1, 0.044, 0.05]], { top: back, bottom: dark }),
         [0, -0.4, -0.1],
-        limb([[0, 0, 0.04, 0.05], [-0.2, 0.02, 0.028, 0.034], [-0.6, 0.06, 0.027, 0.032], [-0.66, 0.07, 0.034, 0.042]], { top: dark, tip: [hoof, 0.76] })),
+        limb([[0.012, -0.005, 0.042, 0.052], [-0.07, 0.005, 0.03, 0.038], [-0.3, 0.03, 0.025, 0.03], [-0.53, 0.052, 0.028, 0.033], [-0.6, 0.06, 0.025, 0.029], [-0.655, 0.072, 0.034, 0.043]],
+          { top: dark, tip: [hoof, 0.88] })),
     ],
     hitBody: { size: [0.66, 1.05, 1.95], center: [0, 1.02, 0] },
     hitNeck: { size: [0.28, 0.8, 0.36], center: [0, 0.3, 0.14] },
@@ -201,15 +264,12 @@ function deerModel({ back = '#8c5c36', belly = '#dcc6a2', dark = '#5e3c24', horn
 
 function rabbitModel() {
   const fur = '#a8937a', pale = '#e0d6c6', white = '#f6f2ea', pink = '#dba09c';
-  const ear = merge(
-    blob(0.05, fur, [0, 0.16, 0], [0.9, 3.4, 0.35]),
-    blob(0.034, pink, [0, 0.16, 0.012], [0.9, 3.5, 0.3]),
-  );
+  const ear = earLeaf(0.34, 0.046, fur, pink, 0.012);
   return {
     body: loft([
-      [0.33, -0.27, 0.04, 0.04], [0.33, -0.22, 0.13, 0.14], [0.33, -0.1, 0.165, 0.175],
+      [0.33, -0.27, 0.04, 0.04], [0.33, -0.22, 0.13, 0.14], [0.335, -0.1, 0.165, 0.18],
       [0.31, 0.06, 0.14, 0.145], [0.33, 0.17, 0.1, 0.11], [0.35, 0.22, 0.04, 0.05],
-    ], { top: fur, bottom: pale, sides: 10 }),
+    ], { top: fur, bottom: pale, sides: 10, ridge: 0.1, stripe: ['#86735c', 0.25, 0.5], mottle: 0.08 }),
     neck: {
       pivot: [0, 0.4, 0.16],
       geometry: limb([[-0.03, -0.02, 0.08, 0.085], [0.05, 0.05, 0.075, 0.075], [0.09, 0.08, 0.07, 0.07]], { top: fur, bottom: pale }),
@@ -218,14 +278,15 @@ function rabbitModel() {
       pivot: [0, 0.1, 0.09],
       geometry: merge(
         loft([
-          [0, -0.09, 0.04, 0.04], [0.02, -0.05, 0.09, 0.09], [0.01, 0.04, 0.092, 0.09],
-          [-0.02, 0.12, 0.06, 0.06], [-0.03, 0.17, 0.02, 0.02],
-        ], { top: fur, bottom: pale, tip: [pink, 0.9], sides: 10, steps: 3 }),
-        eyes(0.075, 0.045, 0.03, 0.02),
+          [0, -0.09, 0.04, 0.04], [0.02, -0.05, 0.09, 0.09], [0.012, 0.04, 0.094, 0.09],
+          [-0.02, 0.12, 0.062, 0.06], [-0.03, 0.165, 0.035, 0.034], [-0.032, 0.178, 0.014, 0.014],
+        ], { top: fur, bottom: pale, tip: [pink, 0.93], sides: 10, steps: 3 }),
+        eyes(0.076, 0.045, 0.03, 0.021),
+        bead(0.03, pale, [0.03, -0.035, 0.13], [1, 0.8, 1]), bead(0.03, pale, [-0.03, -0.035, 0.13], [1, 0.8, 1]), // lunj
       ),
     },
     ears: earPair(0.045, 0.085, -0.03, ear, -0.25, 0.14),
-    tail: { pivot: [0, 0.37, -0.25], rest: 0, geometry: lumpy(0.075, white, [0, 0, 0], [1, 1, 1], 0.12) },
+    tail: { pivot: [0, 0.37, -0.25], rest: 0, geometry: lump([0, 0, 0], 0.075, white, { sides: 7, rings: 5, bumpy: 0.14, uvScale: [1, 1] }) },
     legs: [
       ...legPair(0.07, 0.21, 0.13,
         limb([[0.03, 0, 0.03, 0.035], [-0.08, 0.01, 0.025, 0.03]], { top: fur, bottom: pale }),
